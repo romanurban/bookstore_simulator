@@ -83,7 +83,7 @@ if __name__ == "__main__":
 
     # Initialize inventory
     inventory = Inventory()
-    inventory.load_from_dataset("data/goodreads_books.csv")
+    inventory.load_from_dataset("data/catalog.csv")
 
     # Initialize customers
     customer_manager = CustomerManager()

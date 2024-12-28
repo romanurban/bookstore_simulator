@@ -2,9 +2,9 @@ import pandas as pd
 import random
 
 class Book:
-    def __init__(self, title, author, genre, price, stock):
+    def __init__(self, title, authors, genre, price, stock):
         self.title = title
-        self.author = author
+        self.authors = authors
         self.genre = genre
         self.price = price
         self.stock = stock
@@ -38,9 +38,10 @@ class Inventory:
             # Customize column names as per dataset
             book = Book(
                 title=row['title'],
-                author=row['author'],
-                genre=row['genre'],
-                price=float(row['price']),
+                authors=row['authors'],
+                # genre=row['genre'],
+                genre='',
+                price=float(row['price'].replace('£', '')),
                 stock=random.randint(5, 50)  # Random initial stock
             )
             self.add_book(book)
@@ -80,7 +81,7 @@ class Inventory:
         Display all books in the inventory.
         """
         for book in self.books:
-            print(f"{book.title} | {book.author} | {book.genre} | ${book.price:.2f} | Stock: {book.stock}")
+            print(f"{book.title} | {book.authors} | {book.genre} | £{book.price:.2f} | Stock: {book.stock}")
 
     def get_sales_data(self):
         """
@@ -92,7 +93,7 @@ class Inventory:
 # Example usage
 if __name__ == "__main__":
     inventory = Inventory()
-    inventory.load_from_dataset("data/goodreads_books.csv")
+    inventory.load_from_dataset("data/catalog.csv")
     inventory.list_inventory()
     inventory.sell_book("Book Title Example", 2)
     inventory.restock_book("Book Title Example", 5)

@@ -1,5 +1,5 @@
 from inventory import Inventory
-from customer import CustomerManager
+from cusomer import CustomerManager
 import random
 
 def initialize_simulation():
@@ -9,7 +9,7 @@ def initialize_simulation():
     # Load inventory
     print("Initializing inventory...")
     inventory = Inventory()
-    inventory.load_from_dataset("data/goodreads_books.csv")
+    inventory.load_from_dataset("data/catalog.csv")
     print("Inventory loaded.")
 
     # Generate customers
