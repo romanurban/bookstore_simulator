@@ -2,24 +2,18 @@ import pandas as pd
 import random
 
 class Book:
-    def __init__(self, title, authors, genre, price, stock):
+    def __init__(self, title, authors, genre, price, isbn, publication_date=None, average_rating=0.0, num_pages=0):
         self.title = title
         self.authors = authors
         self.genre = genre
         self.price = price
-        self.stock = stock
-
-    def sell(self, quantity):
-        if self.stock >= quantity:
-            self.stock -= quantity
-            return True  # Sale successful
-        return False  # Insufficient stock
-
-    def restock(self, quantity):
-        self.stock += quantity
+        self.isbn = isbn
+        self.publication_date = publication_date
+        self.average_rating = average_rating
+        self.num_pages = num_pages
 
     def __repr__(self):
-        return f"Book(title={self.title}, stock={self.stock})"
+        return f"Book(title={self.title}, isbn={self.isbn})"
 
 
 class Inventory:
@@ -35,66 +29,50 @@ class Inventory:
         """
         data = pd.read_csv(filepath)
         for _, row in data.iterrows():
-            # Customize column names as per dataset
+            try:
+                rating = float(row['average_rating'])
+            except ValueError:
+                rating = 0.0
+            try:
+                pages = int(row['num_pages'])
+            except (ValueError, KeyError):
+                pages = 0
             book = Book(
                 title=row['title'],
                 authors=row['authors'],
-                # genre=row['genre'],
-                genre='',
+                genre=row['genre'],
                 price=float(row['price'].replace('£', '')),
-                stock=random.randint(5, 50)  # Random initial stock
+                isbn=row['isbn'],
+                publication_date=row['publication_date'],
+                average_rating=rating,
+                num_pages=pages
             )
             self.add_book(book)
 
-    def find_book(self, title):
+    def find_book_by_title(self, title):
         """
         Find a book by title.
         """
         for book in self.books:
-            if book.title.lower() == title.lower():
+            if book.title == title:
                 return book
         return None
-
-    def sell_book(self, title, quantity):
-        """
-        Sell a book and update inventory.
-        """
-        book = self.find_book(title)
-        if book and book.sell(quantity):
-            print(f"Sold {quantity} copy(ies) of '{title}'.")
-        else:
-            print(f"Failed to sell '{title}' - insufficient stock or not found.")
-
-    def restock_book(self, title, quantity):
-        """
-        Restock a book.
-        """
-        book = self.find_book(title)
-        if book:
-            book.restock(quantity)
-            print(f"Restocked {quantity} copy(ies) of '{title}'.")
-        else:
-            print(f"Book '{title}' not found in inventory.")
 
     def list_inventory(self):
         """
         Display all books in the inventory.
         """
         for book in self.books:
-            print(f"{book.title} | {book.authors} | {book.genre} | £{book.price:.2f} | Stock: {book.stock}")
-
-    def get_sales_data(self):
-        """
-        Generate sales data for analysis.
-        """
-        return [{"title": book.title, "stock": book.stock, "price": book.price} for book in self.books]
+            print(
+                f"{book.title} | {book.authors} | {book.genre} | "
+                f"£{book.price:.2f} | "
+                f"Published: {book.publication_date} | Rating: {book.average_rating} | "
+                f"Pages: {book.num_pages}"
+            )
 
 
 # Example usage
 if __name__ == "__main__":
     inventory = Inventory()
     inventory.load_from_dataset("data/catalog.csv")
-    inventory.list_inventory()
-    inventory.sell_book("Book Title Example", 2)
-    inventory.restock_book("Book Title Example", 5)
     inventory.list_inventory()
