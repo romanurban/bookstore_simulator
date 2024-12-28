@@ -3,6 +3,7 @@ import random
 from datetime import datetime, timedelta
 from inventory import Inventory
 from store import Store
+from customer import Customer
 
 def log_sale(isbn, quantity, sale_date, log_filename):
     with open(log_filename, "a") as log_file:
@@ -17,15 +18,21 @@ def simulate_sales(store, days, daily_sales, log_filename):
         daily_sold = 0
         daily_revenue = 0.0
         print(f"Day {day} - {current_date.strftime('%Y-%m-%d')}")
+        
+        # Generate new customer profiles each day
+        customer_profiles = Customer.generate_customer_profiles(100)
+        
         for _ in range(daily_sales):
             if store.stock:
-                book = random.choice(list(store.stock.keys()))
-                quantity = random.randint(1, 2)
-                sold_book = store.sell_book(book.title, quantity=quantity)
-                if sold_book:
-                    log_sale(sold_book.isbn, quantity, current_date, log_filename)
-                    daily_sold += quantity
-                    daily_revenue += sold_book.price * quantity
+                customer = random.choice(customer_profiles)
+                book = customer.choose_book(store)
+                if book:
+                    quantity = random.randint(1, 2)
+                    sold_book = store.sell_book(book.title, quantity=quantity)
+                    if sold_book:
+                        log_sale(sold_book.isbn, quantity, current_date, log_filename)
+                        daily_sold += quantity
+                        daily_revenue += sold_book.price * quantity
             else:
                 print("No more books available to sell.")
                 break
