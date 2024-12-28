@@ -1,5 +1,9 @@
 import random
+import logging
 from inventory import Inventory
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
 class Store:
     def __init__(self, inventory, storage_capacity):
@@ -16,27 +20,28 @@ class Store:
                 quantity = random.randint(1, self.storage_capacity - current_total)
                 self.stock[book] = quantity
                 current_total += quantity
-                print(f"Initiated stock for {book.title} (ISBN: {book.isbn}). Now have {self.stock[book]} copies.")
+                log.debug(f"Initiated stock for {book.title} (ISBN: {book.isbn}). Now have {self.stock[book]} copies.")
             else:
-                print(f"{book.title} (ISBN: {book.isbn}) is already in stock.")
+                log.debug(f"{book.title} (ISBN: {book.isbn}) is already in stock.")
 
     def list_stock(self):
         for book, quantity in self.stock.items():
-            print(f"{book.title} (ISBN: {book.isbn}): {quantity} copies")
+            log.debug(f"{book.title} (ISBN: {book.isbn}): {quantity} copies")
 
     def sell_book(self, title, quantity=1):
         for book in self.stock:
             if book.title == title:
                 if self.stock[book] >= quantity:
                     self.stock[book] -= quantity
-                    print(f"Sold {quantity} copies of {title} (ISBN: {book.isbn}).")
+                    log.debug(f"Sold {quantity} copies of {title} (ISBN: {book.isbn}).")
                     if self.stock[book] == 0:
                         del self.stock[book]
-                    return
+                    return book
                 else:
-                    print(f"Not enough copies of {title} (ISBN: {book.isbn}) to sell. Available: {self.stock[book]}")
-                    return
-        print(f"{title} is not in stock.")
+                    log.debug(f"Not enough copies of {title} (ISBN: {book.isbn}) to sell. Available: {self.stock[book]}")
+                    return None
+        log.debug(f"{title} is not in stock.")
+        return None
 
     def restock(self):
         current_total = sum(self.stock.values())
@@ -50,7 +55,7 @@ class Store:
             else:
                 self.stock[book] = quantity
             current_total += quantity
-            print(f"Restocked {quantity} copies of {book.title} (ISBN: {book.isbn}). Now have {self.stock[book]} copies.")
+            log.debug(f"Restocked {quantity} copies of {book.title} (ISBN: {book.isbn}). Now have {self.stock[book]} copies.")
 
 # Example usage
 if __name__ == "__main__":
@@ -65,7 +70,7 @@ if __name__ == "__main__":
             book = random.choice(list(store.stock.keys()))
             store.sell_book(book.title, quantity=random.randint(1,2))
         else:
-            print("No more books available to sell.")
+            log.debug("No more books available to sell.")
             break
 
     store.restock()
