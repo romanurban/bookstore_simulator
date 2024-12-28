@@ -42,12 +42,15 @@ class Store:
         current_total = sum(self.stock.values())
         while current_total < self.storage_capacity:
             book = random.choice(self.inventory.books)
+            quantity = random.randint(1, 5)  # Random quantity between 1 and 5
+            if current_total + quantity > self.storage_capacity:
+                quantity = self.storage_capacity - current_total
             if book in self.stock:
-                self.stock[book] += 1
+                self.stock[book] += quantity
             else:
-                self.stock[book] = 1
-            current_total += 1
-            print(f"Restocked {book.title} (ISBN: {book.isbn}). Now have {self.stock[book]} copies.")
+                self.stock[book] = quantity
+            current_total += quantity
+            print(f"Restocked {quantity} copies of {book.title} (ISBN: {book.isbn}). Now have {self.stock[book]} copies.")
 
 # Example usage
 if __name__ == "__main__":
@@ -64,3 +67,6 @@ if __name__ == "__main__":
         else:
             print("No more books available to sell.")
             break
+
+    store.restock()
+    store.list_stock()
