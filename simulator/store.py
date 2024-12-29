@@ -44,6 +44,7 @@ class Store:
         return None
 
     def restock(self):
+        log.info(f"Books before restocking: {sum(self.stock.values())}")
         current_total = sum(self.stock.values())
         while current_total < self.storage_capacity:
             book = random.choice(self.inventory.books)
