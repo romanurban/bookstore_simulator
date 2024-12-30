@@ -13,7 +13,7 @@ def log_revenue(day, daily_sold, daily_revenue, total_revenue, revenue_log_filen
     with open(revenue_log_filename, "a") as log_file:
         log_file.write(f"Day {day}: Books Sold: {daily_sold}, Daily Revenue: £{daily_revenue:.2f}, Total Revenue: £{total_revenue:.2f}\n")
 
-def simulate_sales(store, days, log_filename, revenue_log_filename):
+def simulate_sales(store, days, log_filename, revenue_log_filename, use_optimized_restock=False):
     total_sold = 0
     total_revenue = 0.0
     current_date = datetime.now()
@@ -67,7 +67,10 @@ def simulate_sales(store, days, log_filename, revenue_log_filename):
         log_revenue(day, daily_sold, daily_revenue, total_revenue, revenue_log_filename)
         
         if day % 7 == 0:  # Restock every week
-            store.restock()
+            if use_optimized_restock:
+                store.restock_optimized()
+            else:
+                store.restock()
         store.list_stock()
         
         current_date += timedelta(days=1)
@@ -89,4 +92,8 @@ if __name__ == "__main__":
     log_filename = os.path.join(log_folder, f"{int(datetime.now().timestamp())}_sales.log")
     revenue_log_filename = os.path.join(log_folder, f"{int(datetime.now().timestamp())}_revenue.log")
 
-    simulate_sales(store, days=365, log_filename=log_filename, revenue_log_filename=revenue_log_filename)
+    # Run simulation with random restocking
+   # simulate_sales(store, days=365, log_filename=log_filename, revenue_log_filename=revenue_log_filename, use_optimized_restock=False)
+
+    # Run simulation with optimized restocking
+    simulate_sales(store, days=31, log_filename=log_filename, revenue_log_filename=revenue_log_filename, use_optimized_restock=True)
