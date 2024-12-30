@@ -1,9 +1,0 @@
-<solver xmlns="https://timefold.ai/xsd/solver"
-        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:schemaLocation="https://timefold.ai/xsd/solver https://timefold.ai/xsd/solver/solver.xsd">
-    <solutionClass>optimization.optimization_solution.OptimizationSolution</solutionClass>
-    <entityClass>optimization.book_entity.BookEntity</entityClass>
-    <termination>
-        <spentLimit>60s</spentLimit>
-    </termination>
-</solver>
