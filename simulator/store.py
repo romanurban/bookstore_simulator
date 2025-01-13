@@ -1,8 +1,6 @@
 import random
 import logging
 from inventory import Inventory
-from optimization.solver import solve_problem
-from optimization.book_entity import BookEntity
 from customer import Customer
 
 logging.basicConfig(level=logging.INFO)
@@ -62,22 +60,8 @@ class Store:
             log.debug(f"Restocked {quantity} copies of {book.title} (ISBN: {book.isbn}). Now have {self.stock[book]} copies.")
 
     def restock_optimized(self):
-        books = [
-            BookEntity(
-                title=book.title,
-                author=book.authors,
-                genre=book.genre,
-                price=book.price,
-                rating=book.average_rating,
-                is_seasonal=self.is_seasonal(book),
-                current_stock=self.stock.get(book, 0)
-            )
-            for book in self.inventory.books
-        ]
-
-        solution = solve_problem(books, total_stock_capacity=self.storage_capacity)
-        for book, plan in zip(self.inventory.books, solution.books):
-            self.stock[book] = plan.restock_quantity
+        pass
+    
     def is_seasonal(self, book):
         """
         Determines if a book is seasonal based on current month and book's genre, title, or keywords.

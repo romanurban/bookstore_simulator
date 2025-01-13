@@ -83,7 +83,7 @@ def simulate_sales(store, days, log_filename, revenue_log_filename, use_optimize
 
 if __name__ == "__main__":
     inventory = Inventory()
-    inventory.load_from_dataset("data/catalog.csv")
+    inventory.load_from_dataset("../data/catalog.csv")
     store = Store(inventory, storage_capacity=3000)
     store.list_stock()
 
@@ -96,4 +96,4 @@ if __name__ == "__main__":
    # simulate_sales(store, days=365, log_filename=log_filename, revenue_log_filename=revenue_log_filename, use_optimized_restock=False)
 
     # Run simulation with optimized restocking
-    simulate_sales(store, days=31, log_filename=log_filename, revenue_log_filename=revenue_log_filename, use_optimized_restock=True)
+    simulate_sales(store, days=31, log_filename=log_filename, revenue_log_filename=revenue_log_filename, use_optimized_restock=False)
