@@ -87,10 +87,12 @@ class Store:
             current_stock = [
                 {
                     "isbn": book.isbn,
+                    "author": book.authors,
                     "title": book.title,
                     "price": book.price,
                     "current_stock": self.stock.get(book, 0),
-                    "avg_daily_sales": 2.5
+                    "avg_daily_sales": 2.5,
+                    "rating": book.average_rating
                 }
                 for book in self.inventory.books
             ]
@@ -160,11 +162,11 @@ class Store:
             
             # Timeout reached
             print("\nOptimization timed out - falling back to basic optimization")
-            return self._fallback_restock()
+            return self.restock()
             
         except Exception as e:
             log.warning(f"Solver optimization failed: {e}")
-            return self._fallback_restock()
+            return self.restock()
 
         print("\nFalling back to basic optimization...")
         # Fallback to basic optimization

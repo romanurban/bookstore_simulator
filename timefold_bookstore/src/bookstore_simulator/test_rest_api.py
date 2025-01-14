@@ -26,18 +26,38 @@ def test_hello_world():
     assert response.text == '"hello-world"'
 
 def test_optimize_restock():
-    """Test optimize-restock endpoint with test inventory"""
-    mock_book = {
-        "title": "Test Book",
-        "isbn": "123-456-789",
-        "price": 29.99,
-        "current_stock": 10,
-        "avg_daily_sales": 2.5
-    }
-    
-    response = client.post("/optimize-restock", json=[mock_book])
+    """Test basic restock optimization"""
+    test_books = [
+        {
+            "title": "Test Book 1",
+            "isbn": "123-456-789",
+            "price": 29.99,
+            "current_stock": 0,
+            "avg_daily_sales": 2.0,
+            "author": "Test Author 1",
+            "rating": 4.5
+        },
+        {
+            "title": "Test Book 2", 
+            "isbn": "987-654-321",
+            "price": 19.99,
+            "current_stock": 1,
+            "avg_daily_sales": 1.5,
+            "author": "Test Author 2",
+            "rating": 4.0
+        }
+    ]
+
+    response = client.post("/optimize-restock", json=test_books)
     assert response.status_code == 200
-    assert isinstance(response.json(), str)  # Should return job ID
+    
+    job_id = response.json()
+    assert isinstance(job_id, str)
+    
+    # Check solution status
+    status_response = client.get(f"/solutions/{job_id}/status")
+    assert status_response.status_code == 200
+    assert status_response.json()["status"] in ["SOLVING", "SOLVED"]
 
 def test_empty_inventory():
     """Test optimization with empty inventory"""
@@ -47,10 +67,17 @@ def test_empty_inventory():
 def test_invalid_book_data():
     """Test with invalid book data"""
     invalid_book = {
-        "isbn": "123-456-789"  # Missing required fields
+        "isbn": "123-456-789",
+        "title": "Invalid Book",
+        "price": 29.99,
+        # Missing required fields: author, rating
     }
     response = client.post("/optimize-restock", json=[invalid_book])
-    assert response.status_code == 422
+    assert response.status_code == 422  # Unprocessable Entity
+    
+    error_detail = response.json()["detail"]
+    assert any("author" in error["loc"] for error in error_detail)
+    assert any("rating" in error["loc"] for error in error_detail)
 
 def test_budget_constraint():
     """Test budget constraint (should not exceed 1000)"""
@@ -59,7 +86,9 @@ def test_budget_constraint():
         "isbn": "123-456-789",
         "price": 200.0,
         "current_stock": 0,
-        "avg_daily_sales": 1.0
+        "avg_daily_sales": 1.0,
+        "author": "Test Author",  # Add required field
+        "rating": 4.5  # Add required field
     }
 
     response = client.post("/optimize-restock", json=[expensive_book])
@@ -86,7 +115,9 @@ def test_storage_constraint():
         "isbn": "123-456-789",
         "price": 10.0,
         "current_stock": 90,
-        "avg_daily_sales": 1.0
+        "avg_daily_sales": 1.0,
+        "author": "Test Author",  # Add required field
+        "rating": 4.5  # Add required field
     }
     
     response = client.post("/optimize-restock", json=[book])
@@ -109,7 +140,9 @@ def test_solver_execution():
         "isbn": "123-456-789",
         "price": 29.99,
         "current_stock": 10,
-        "avg_daily_sales": 2.5
+        "avg_daily_sales": 2.5,
+        "author": "Test Author",  # Add required field
+        "rating": 4.5  # Add required field
     }
     
     response = client.post("/optimize-restock", json=[mock_book])
@@ -130,14 +163,18 @@ def test_constraint_validation():
             "isbn": "111",
             "price": 500.0,
             "current_stock": 0,
-            "avg_daily_sales": 2.0
+            "avg_daily_sales": 2.0,
+            "author": "Test Author",  # Add required field
+            "rating": 4.5  # Add required field
         },
         {
             "title": "Storage Test Book",
             "isbn": "222",
             "price": 10.0,
             "current_stock": 90,
-            "avg_daily_sales": 1.0
+            "avg_daily_sales": 1.0,
+            "author": "Sample Author",  # Add required field
+            "rating": 3.0  # Add required field
         }
     ]
     
@@ -162,7 +199,9 @@ def test_solution_timeout():
         "title": "Test Book",
         "isbn": "123-456-789",
         "price": 29.99,
-        "current_stock": 10
+        "current_stock": 10,
+        "author": "Test Author",  # Add required field
+        "rating": 4.5  # Add required field
     }
     
     # Start optimization

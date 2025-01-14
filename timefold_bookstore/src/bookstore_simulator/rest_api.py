@@ -4,7 +4,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from uuid import uuid4
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+from fastapi.responses import JSONResponse
 
 from .domain import Book, RestockingDecision, RestockingSolution
 from .solver import solver_manager
@@ -34,11 +35,29 @@ def update_solution(problem_id: str, solution: RestockingSolution):
         log.debug(f"Solution {problem_id} updated: {solutions[problem_id].status}")
 
 @app.post("/optimize-restock")
-async def optimize_restock(current_inventory: list[Book]) -> str:
+async def optimize_restock(inventory: list[dict]) -> str:
+    """Optimize restocking decisions"""
     try:
-        log.debug("Starting optimize-restock with inventory: %s", current_inventory)
+        log.debug(f"Starting optimize-restock with inventory: {inventory}")
+        current_inventory = []
+        for item in inventory:
+            try:
+                current_inventory.append(Book(**item))
+            except ValidationError as e:
+                # Return 422 for validation errors
+                return JSONResponse(
+                    status_code=422,
+                    content={"detail": e.errors()}
+                )
         
-        decisions = [RestockingDecision(isbn=book.isbn) for book in current_inventory]
+        decisions = [
+            RestockingDecision(
+                isbn=book.isbn,
+                author=book.author, 
+                rating=book.rating  
+            ) 
+            for book in current_inventory
+        ]
         initial_solution = RestockingSolution(
             books=current_inventory,
             decisions=decisions,
@@ -66,7 +85,7 @@ async def optimize_restock(current_inventory: list[Book]) -> str:
         return job_id
         
     except Exception as e:
-        log.exception("Optimization failed")
+        log.error(f"Optimization failed", exc_info=e)
         raise HTTPException(status_code=503, detail=str(e))
 
 @app.get("/solutions/{job_id}")
