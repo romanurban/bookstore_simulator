@@ -54,14 +54,15 @@ async def optimize_restock(inventory: list[dict]) -> str:
             RestockingDecision(
                 isbn=book.isbn,
                 author=book.author, 
-                rating=book.rating  
+                rating=book.rating,
+                restock_quantity=5  # Start with 5 instead of 0
             ) 
             for book in current_inventory
         ]
         initial_solution = RestockingSolution(
             books=current_inventory,
             decisions=decisions,
-            quantities=list(range(101))
+            quantities=list(range(0, 21))  # Match the domain range
         )
         
         job_id = str(uuid4())

@@ -80,10 +80,14 @@ class Store:
     def restock_optimized(self) -> List[Tuple[Book, int]]:
         """Use solver API to optimize restocking decisions"""
         log.info(f"Books before restocking: {sum(self.stock.values())}")
-        current_total = sum(self.stock.values())
         
         try:
-            # Prepare inventory data
+            # Sort books by rating and take top 1000
+            sorted_books = sorted(self.inventory.books, 
+                                key=lambda x: float(x.average_rating) if x.average_rating else 0, 
+                                reverse=True)[:1000]
+            
+            # Prepare inventory data with limited books
             current_stock = [
                 {
                     "isbn": book.isbn,
@@ -92,86 +96,115 @@ class Store:
                     "price": book.price,
                     "current_stock": self.stock.get(book, 0),
                     "avg_daily_sales": 2.5,
-                    "rating": book.average_rating
+                    "rating": book.average_rating,
+                    "restock_quantity": 10  # Initialize with non-zero value as starting point
                 }
-                for book in self.inventory.books
+                for book in sorted_books
             ]
 
-            # Call solver with correct port
+            # Call solver
+            log.info(f"Sending {len(current_stock)} books to solver")
+            log.debug(f"First 5 books being sent: {current_stock[:5]}")
+            
             response = requests.post(
-                "http://localhost:8080/optimize-restock",  # Changed from 8080 to 8000
+                "http://localhost:8080/optimize-restock",
                 json=current_stock,
-                timeout=60  # Increased timeout
+                timeout=120
             )
             response.raise_for_status()
             job_id = response.json()
+            log.info(f"Got job_id: {job_id}")
 
-            # Poll for solution with proper attempt tracking
-            max_retries = 100  # Reduce max retries
+            # Poll for solution
+            max_retries = 20  # Reduced retries but increased sleep
             attempt = 1
             
             while attempt <= max_retries:
                 status = requests.get(
                     f"http://localhost:8080/solutions/{job_id}/status",
-                    timeout=5
+                    timeout=10
                 ).json()
                 
-                print(f"Attempt {attempt}: Status = {status['status']}")
+                print(f"Attempt {attempt}: Status = {status['status']} Score = {status.get('score', 'N/A')}")
                 
-                if status["status"] == "SOLVED":
-                    solution = requests.get(
+                if status["status"] in ["SOLVED", "SOLVING"]:
+                    solution_response = requests.get(
                         f"http://localhost:8080/solutions/{job_id}",
-                        timeout=5
-                    ).json()
+                        timeout=10
+                    )
                     
-                    # Filter only positive quantity decisions
-                    decisions = [
-                        (self.inventory.find_by_isbn(d["isbn"]), d["restockQuantity"]) 
-                        for d in solution["decisions"]
-                        if d["restockQuantity"] > 0  # Only include positive quantities
-                    ]
-                    
-                    # Mirror basic restock approach
-                    for book, quantity in decisions:
-                        if current_total >= self.storage_capacity:
-                            break
+                    if solution_response.status_code == 200:
+                        try:
+                            solution_data = solution_response.json()
+                            log.debug(f"Solution data: {solution_data}")
                             
-                        if quantity > 0:  # Double check quantity is positive
-                            # Adjust quantity if would exceed capacity
-                            if current_total + quantity > self.storage_capacity:
-                                quantity = self.storage_capacity - current_total
-                            
-                            # Update stock
-                            if book in self.stock:
-                                self.stock[book] += quantity
+                            # Handle nested 'decisions' structure
+                            if isinstance(solution_data, dict) and 'decisions' in solution_data:
+                                decisions = []
+                                total_restock = 0
+                                log.info(f"Raw solution decisions: {solution_data['decisions'][:5]}")  # Show first 5
+                                for item in solution_data['decisions']:
+                                    isbn = item.get('isbn')
+                                    restock_qty = item.get('restockQuantity', 0)
+                                    if isbn:  # Log all decisions, not just positive ones
+                                        log.debug(f"Decision for ISBN {isbn}: {restock_qty}")
+                                    if isbn and restock_qty > 0:
+                                        book = next((b for b in sorted_books if b.isbn == isbn), None)
+                                        if book:
+                                            decisions.append((book, restock_qty))
+                                            total_restock += restock_qty
+                                            
+                                log.info(f"Total books to restock: {total_restock}")
+                                log.info(f"Number of different books to restock: {len(decisions)}")
+                                if decisions:
+                                    log.info("First 5 restocking decisions:")
+                                    for book, qty in decisions[:5]:
+                                        log.info(f"  - {book.title}: {qty} copies")
+                                
+                                # After getting decisions, apply them to stock
+                                if decisions:
+                                    for book, quantity in decisions:
+                                        if book in self.stock:
+                                            self.stock[book] += quantity
+                                        else:
+                                            self.stock[book] = quantity
+                                        log.info(f"Restocked {book.title}: added {quantity} (new total: {self.stock[book]})")
+                                    
+                                    total_after = sum(self.stock.values())
+                                    log.info(f"Books after restocking: {total_after}")
+                                    
+                                return decisions
                             else:
-                                self.stock[book] = quantity
-                            
-                            current_total += quantity
-                            log.info(f"Restocked {quantity} copies of {book.title}. Now have {self.stock[book]} copies.")
-                    
-                    total_restocked = sum(qty for _, qty in decisions)
-                    print(f"\nSOLVED! Optimization complete.")
-                    print(f"Restocked {total_restocked} books up to capacity {self.storage_capacity}")
-                    print(f"Total books in store now: {sum(self.stock.values())}")
-                    
-                    return decisions
+                                log.warning(f"Unexpected solution format: {solution_data}")
+                                return self._basic_restock()
+                        except ValueError as e:
+                            log.warning(f"Failed to parse solution: {e}")
+                            return self._basic_restock()
                 
-                attempt += 1  # Increment attempt counter
-                time.sleep(1)  # Add delay between attempts
+                attempt += 1
+                time.sleep(5)
             
-            # Timeout reached
-            print("\nOptimization timed out - falling back to basic optimization")
-            return self.restock()
+            log.warning("Optimization timed out - falling back to basic optimization")
+            return self._basic_restock()
             
         except Exception as e:
             log.warning(f"Solver optimization failed: {e}")
-            return self.restock()
+            return self._basic_restock()
 
-        print("\nFalling back to basic optimization...")
-        # Fallback to basic optimization
-        return [(book, max(0, 10 - self.stock.get(book, 0))) 
-                for book in self.inventory.books]
+    def _basic_restock(self) -> List[Tuple[Book, int]]:
+        """Fallback method for basic restocking"""
+        decisions = []
+        for book in self.inventory.books:
+            current_stock = self.stock.get(book, 0)
+            if current_stock < 10:  # Basic threshold
+                restock_amount = 10 - current_stock
+                decisions.append((book, restock_amount))
+                # Apply the restock immediately
+                if book in self.stock:
+                    self.stock[book] += restock_amount
+                else:
+                    self.stock[book] = restock_amount
+        return decisions
     
 # Example usage
 if __name__ == "__main__":
