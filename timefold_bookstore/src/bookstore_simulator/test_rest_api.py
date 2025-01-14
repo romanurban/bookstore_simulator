@@ -1,8 +1,23 @@
 from fastapi.testclient import TestClient
-from .rest_api import app
+from unittest import mock
+import time
+import requests
+from .rest_api import app, solutions  # Add solutions import
 from .domain import Book, RestockingDecision, RestockingSolution
+import logging
+from unittest.mock import patch, Mock
+import pytest
+
+log = logging.getLogger(__name__)
 
 client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def cleanup_solutions():
+    """Cleanup any existing solutions before and after each test"""
+    solutions.clear()  # Now solutions is defined
+    yield
+    solutions.clear()
 
 def test_hello_world():
     """Test basic API functionality with hello-world endpoint"""
@@ -46,15 +61,19 @@ def test_budget_constraint():
         "current_stock": 0,
         "avg_daily_sales": 1.0
     }
-    
+
     response = client.post("/optimize-restock", json=[expensive_book])
     assert response.status_code == 200
     job_id = response.json()
-    
-    # Wait for solution
-    import time
-    time.sleep(5)
-    
+
+    # Wait for solution with status check
+    max_retries = 10
+    for attempt in range(max_retries):
+        status_response = client.get(f"/solutions/{job_id}/status")
+        if status_response.json()["status"] == "SOLVED":
+            break
+        time.sleep(1)
+
     # Verify solution respects budget
     solution = client.get(f"/solutions/{job_id}").json()
     for decision in solution["decisions"]:
@@ -136,3 +155,37 @@ def test_constraint_validation():
             assert decision["restockQuantity"] * 500.0 <= 1000
         if decision["isbn"] == "222":
             assert decision["restockQuantity"] + 90 <= 100
+
+def test_solution_timeout():
+    """Test timeout handling during optimization"""
+    mock_book = {
+        "title": "Test Book",
+        "isbn": "123-456-789",
+        "price": 29.99,
+        "current_stock": 10
+    }
+    
+    # Start optimization
+    response = client.post("/optimize-restock", json=[mock_book])
+    assert response.status_code == 200
+    job_id = response.json()
+    
+    # Test solution polling with status 
+    max_retries = 35
+    for attempt in range(max_retries):
+        status_response = client.get(f"/solutions/{job_id}/status")
+        assert status_response.status_code == 200
+        
+        state = status_response.json()
+        if state["status"] == "SOLVED":
+            solution = client.get(f"/solutions/{job_id}").json()
+            assert "decisions" in solution
+            return
+        
+        # Reduce polling frequency    
+        time.sleep(0.5)  # Reduced from 1s to 0.5s
+        
+    pytest.fail("Solution timed out")  # Better than assert False
+
+# Run with:
+# pytest -vv --log-cli-level=DEBUG src/bookstore_simulator/test_rest_api.py::test_network_failures
