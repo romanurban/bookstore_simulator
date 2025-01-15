@@ -176,7 +176,7 @@ class Store:
                                             self.stock[book] += quantity
                                         else:
                                             self.stock[book] = quantity
-                                        log.info(f"Restocked {book.title}: added {quantity} (new total: {self.stock[book]})")
+                                        log.debug(f"Restocked {book.title}: added {quantity} (new total: {self.stock[book]})")
                                     
                                     total_after = sum(self.stock.values())
                                     log.info(f"Books after restocking: {total_after}")

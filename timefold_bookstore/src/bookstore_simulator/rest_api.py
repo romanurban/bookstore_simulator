@@ -68,7 +68,7 @@ async def optimize_restock(inventory: list[dict]) -> str:
                 isbn=book.isbn,
                 author=book.author, 
                 rating=book.rating,
-                restock_quantity=5  # Start with 5 instead of 0
+                restock_quantity=0  # Use 0 for a near-feasible start
             ) 
             for book in current_inventory
         ]

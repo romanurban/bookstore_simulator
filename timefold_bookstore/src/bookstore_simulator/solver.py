@@ -12,7 +12,7 @@ solver_config = SolverConfig(
         constraint_provider_function=define_constraints
     ),
     termination_config=TerminationConfig(
-        spent_limit=Duration(seconds=5)
+        spent_limit=Duration(seconds=30)  # Increase from 5 to 30
     )
 )
 
