@@ -11,13 +11,12 @@ log = logging.getLogger(__name__)
 def define_constraints(constraint_factory: ConstraintFactory):
     return [
         # Hard constraints
-        #minimum_stock(constraint_factory),
         limit_total_capacity(constraint_factory),
-        #must_match_exact_capacity(constraint_factory),
         # Soft constraints
         prefer_higher_rated_books(constraint_factory),
         prefer_seasonal_books(constraint_factory),
-        prefer_popular_authors(constraint_factory)
+        prefer_popular_authors(constraint_factory),
+        prefer_affordable_books(constraint_factory)
     ]
 
 def minimum_stock(constraint_factory: ConstraintFactory):
@@ -43,21 +42,21 @@ def limit_total_capacity(constraint_factory: ConstraintFactory):
             .as_constraint("Total capacity"))
 
 def prefer_higher_rated_books(constraint_factory: ConstraintFactory):
-    """Reward books based on their rating - using simple integer ranges"""
+    """Reward books based on rating with exponential scaling"""
     return (constraint_factory
             .for_each(RestockingDecision)
             .filter(lambda decision: decision.restock_quantity > 0)
             .reward(HardSoftScore.ONE_SOFT,
                    lambda decision: 
-                   5 if decision.rating >= 4.5 else
-                   4 if decision.rating >= 4.0 else
-                   3 if decision.rating >= 3.5 else
-                   2 if decision.rating >= 3.0 else
-                   1)  # Simple integer rewards based on rating ranges
+                   25 if decision.rating >= 4.8 else  # Exponential scaling
+                   16 if decision.rating >= 4.5 else
+                   9 if decision.rating >= 4.0 else
+                   4 if decision.rating >= 3.5 else
+                   1)
             .as_constraint("Prefer higher rated books"))
 
 def prefer_seasonal_books(constraint_factory: ConstraintFactory):
-    """Reward books matching current month's seasonal keywords with 20x weight"""
+    """Enhanced seasonal matching with multiple keyword bonus"""
     return (constraint_factory
             .for_each(RestockingDecision)
             .join(Book,
@@ -67,8 +66,20 @@ def prefer_seasonal_books(constraint_factory: ConstraintFactory):
                     any(keyword.lower() in str(book.title).lower() or 
                         keyword.lower() in str(book.author).lower()
                         for keyword in get_seasonal_keywords(book.current_date.month)))
-            .reward(HardSoftScore.of(0, 20))  # Using of() to create a stronger soft score
+            .reward(HardSoftScore.of(0, 50))  # Increased seasonal importance
             .as_constraint("Seasonal preference"))
+
+def prefer_affordable_books(constraint_factory: ConstraintFactory):
+    """Reward books under £15 to maintain affordable options"""
+    return (constraint_factory
+            .for_each(RestockingDecision)
+            .join(Book,
+                  Joiners.equal(lambda decision: decision.isbn,
+                              lambda book: book.isbn))
+            .filter(lambda decision, book: book.price < 15.0)
+            .reward(HardSoftScore.ONE_SOFT,
+                   lambda decision, book: 5)
+            .as_constraint("Affordable books preference"))
 
 def prefer_popular_authors(constraint_factory: ConstraintFactory):
     """Reward books by popular authors (high rating & frequency)"""

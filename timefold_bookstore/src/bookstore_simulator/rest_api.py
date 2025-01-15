@@ -77,14 +77,15 @@ async def optimize_restock(inventory: list[dict]) -> str:
                 author=book.author, 
                 rating=book.rating,
                 current_date=current_date,  # Add current_date to each decision
-                restock_quantity=0
+                restock_quantity=0,
+                genre=book.genre
             ) 
             for book in current_inventory
         ]
         initial_solution = RestockingSolution(
             books=current_inventory,
             decisions=decisions,
-            quantities=list(range(0, 21)),
+            quantities=list(range(1, 3)),
             current_date=current_date  # Add current_date to solution
         )
         

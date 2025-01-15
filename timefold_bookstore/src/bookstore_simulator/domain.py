@@ -14,10 +14,10 @@ class Book(JsonDomainBase):
     author: str
     rating: float
     price: float
-    current_stock: int = 10
-    avg_daily_sales: float = 0.0
+    current_stock: int = 2
     remaining_capacity: int = 0
     current_date: datetime 
+    genre: str = "Unknown"
 
 
 @planning_entity
@@ -28,14 +28,15 @@ class RestockingDecision(JsonDomainBase):
     current_date: datetime  # Add current date field
     restock_quantity: Annotated[int, 
                               PlanningVariable,
-                              Field(default=0, ge=0, le=20)]  # Increased max to 20
+                              Field(default=0, ge=0, le=5)]  # Increased max to 5
+    genre: str
 
 
 @planning_solution
 class RestockingSolution(JsonDomainBase):
     books: Annotated[list[Book], ProblemFactCollectionProperty]
     decisions: Annotated[list[RestockingDecision], PlanningEntityCollectionProperty]
-    quantities: Annotated[list[int], ValueRangeProvider] = list(range(0, 21))  # Changed range to 0-20
+    quantities: Annotated[list[int], ValueRangeProvider] = list(range(0, 5))  # Changed range to 0-5
     score: Annotated[HardSoftScore | None,  # Changed from HardSoftDecimalScore
                      PlanningScore, Field(default=None)]
     solver_status: Annotated[SolverStatus | None, Field(default=None)]

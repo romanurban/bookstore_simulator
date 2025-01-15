@@ -16,7 +16,7 @@ def log_revenue(day, daily_sold, daily_revenue, total_revenue, revenue_log_filen
 def simulate_sales(store, days, log_filename, revenue_log_filename, use_optimized_restock=False):
     total_sold = 0
     total_revenue = 0.0
-    current_date = datetime(2025, 1, 15)  # Set a fixed start date for simulation
+    current_date = datetime(2025, 1, 1)  # Set a fixed start date for simulation
     
     # Define average sales for each day of the week (0 = Monday, 6 = Sunday)
     avg_sales_by_day = {
@@ -46,10 +46,10 @@ def simulate_sales(store, days, log_filename, revenue_log_filename, use_optimize
                 book = customer.choose_book(store, current_date)
                 if book:
                     # Determine the quantity to buy
-                    if random.random() < 0.65:
-                        quantity = random.choice([2, 3])
-                    else:
-                        quantity = 1
+                    # if random.random() < 0.65:
+                    #     quantity = random.choice([2, 3])
+                    # else:
+                    quantity = 1
                     sold_book = store.sell_book(book.title, quantity=quantity)
                     if sold_book:
                         log_sale(sold_book.isbn, quantity, current_date, log_filename)

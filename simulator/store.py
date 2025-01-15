@@ -115,6 +115,7 @@ class Store:
                     "current_stock": self.stock.get(book, 0),
                     "avg_daily_sales": 2.5,
                     "rating": book.average_rating,
+                    "genre": book.genre,  # Add genre to the data sent to solver
                     "restock_quantity": 0,
                     "remaining_capacity": remaining_capacity,
                     "current_date": current_date.isoformat()  # Add current date to each book entry
@@ -145,7 +146,7 @@ class Store:
                     timeout=10
                 ).json()
                 
-                print(f"Attempt {attempt}: Status = {status['status']} Score = {status.get('score', 'N/A')}")
+                log.debug(f"Attempt {attempt}: Status = {status['status']} Score = {status.get('score', 'N/A')}")
                 
                 if status["status"] in ["SOLVED"]:
                     solution_response = requests.get(
