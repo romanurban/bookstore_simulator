@@ -1,3 +1,4 @@
+from datetime import datetime
 from timefold.solver import SolverStatus
 from timefold.solver.domain import *
 from timefold.solver.score import HardSoftScore  # Changed from HardSoftDecimalScore
@@ -16,6 +17,7 @@ class Book(JsonDomainBase):
     current_stock: int = 10
     avg_daily_sales: float = 0.0
     remaining_capacity: int = 0
+    current_date: datetime 
 
 
 @planning_entity
@@ -23,6 +25,7 @@ class RestockingDecision(JsonDomainBase):
     isbn: Annotated[str, PlanningId]
     author: str
     rating: float
+    current_date: datetime  # Add current date field
     restock_quantity: Annotated[int, 
                               PlanningVariable,
                               Field(default=0, ge=0, le=20)]  # Increased max to 20

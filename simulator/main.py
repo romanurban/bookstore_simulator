@@ -16,7 +16,7 @@ def log_revenue(day, daily_sold, daily_revenue, total_revenue, revenue_log_filen
 def simulate_sales(store, days, log_filename, revenue_log_filename, use_optimized_restock=False):
     total_sold = 0
     total_revenue = 0.0
-    current_date = datetime.now()
+    current_date = datetime(2025, 1, 15)  # Set a fixed start date for simulation
     
     # Define average sales for each day of the week (0 = Monday, 6 = Sunday)
     avg_sales_by_day = {
@@ -68,7 +68,7 @@ def simulate_sales(store, days, log_filename, revenue_log_filename, use_optimize
         
         if day % 7 == 0:  # Restock every week
             if use_optimized_restock:
-                store.restock_optimized()
+                store.restock_optimized(current_date)  # Pass current_date to restock_optimized
             else:
                 store.restock()
         store.list_stock()

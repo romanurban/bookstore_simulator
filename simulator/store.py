@@ -9,6 +9,7 @@ import time
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -77,9 +78,9 @@ class Store:
             current_total += quantity
             log.debug(f"Restocked {quantity} copies of {book.title} (ISBN: {book.isbn}). Now have {self.stock[book]} copies.")
 
-    def restock_optimized(self) -> List[Tuple[Book, int]]:
+    def restock_optimized(self, current_date) -> List[Tuple[Book, int]]:  # Add current_date parameter
         """Use solver API to optimize restocking decisions"""
-        log.info(f"Books before restocking: {sum(self.stock.values())}")
+        log.info(f"Books before restocking: {sum(self.stock.values())} on {current_date}")
         
         try:
             current_total = sum(self.stock.values())
@@ -105,7 +106,7 @@ class Store:
             log.info(f"Selected {len(sorted_books)} books "
                     f"(including {len(top_rated)} top-rated and {len(random_selection)} random)")
             
-            # Prepare inventory data with randomly selected books
+            # Prepare inventory data with current date
             current_stock = [
                 {
                     "isbn": book.isbn,
@@ -115,8 +116,9 @@ class Store:
                     "current_stock": self.stock.get(book, 0),
                     "avg_daily_sales": 2.5,
                     "rating": book.average_rating,
-                    "restock_quantity": 10,  # Initialize with non-zero value as starting point
-                    "remaining_capacity": remaining_capacity  # Add remaining capacity to each entry
+                    "restock_quantity": 0,
+                    "remaining_capacity": remaining_capacity,
+                    "current_date": current_date.isoformat()  # Add current date to each book entry
                 }
                 for book in sorted_books
             ]

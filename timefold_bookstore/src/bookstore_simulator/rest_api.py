@@ -1,5 +1,6 @@
 import logging
 import threading
+from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -53,11 +54,18 @@ async def optimize_restock(inventory: list[dict]) -> str:
     try:
         log.info(f"Starting optimization for {len(inventory)} items")
         current_inventory = []
+        
+        # Extract current_date from first inventory item or use default
+        current_date = None
+        if inventory and "current_date" in inventory[0]:
+            current_date = datetime.fromisoformat(inventory[0]["current_date"])
+        else:
+            current_date = datetime.now()
+            
         for item in inventory:
             try:
                 current_inventory.append(Book(**item))
             except ValidationError as e:
-                # Return 422 for validation errors
                 return JSONResponse(
                     status_code=422,
                     content={"detail": e.errors()}
@@ -68,14 +76,16 @@ async def optimize_restock(inventory: list[dict]) -> str:
                 isbn=book.isbn,
                 author=book.author, 
                 rating=book.rating,
-                restock_quantity=0  # Use 0 for a near-feasible start
+                current_date=current_date,  # Add current_date to each decision
+                restock_quantity=0
             ) 
             for book in current_inventory
         ]
         initial_solution = RestockingSolution(
             books=current_inventory,
             decisions=decisions,
-            quantities=list(range(0, 21))  # Match the domain range
+            quantities=list(range(0, 21)),
+            current_date=current_date  # Add current_date to solution
         )
         
         job_id = str(uuid4())

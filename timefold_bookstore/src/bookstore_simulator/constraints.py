@@ -59,9 +59,14 @@ def prefer_seasonal_books(constraint_factory: ConstraintFactory):
     """Reward books matching current month's seasonal keywords"""
     return (constraint_factory
             .for_each(RestockingDecision)
-            .filter(lambda decision: decision.restock_quantity > 0)
-            .reward(HardSoftScore.ONE_SOFT,
-                   lambda decision: decision.restock_quantity)
+            .join(Book,
+                  Joiners.equal(lambda decision: decision.isbn,
+                              lambda book: book.isbn))
+            .filter(lambda decision, book: 
+                    any(keyword.lower() in str(book.title).lower() or 
+                        keyword.lower() in str(book.author).lower()
+                        for keyword in get_seasonal_keywords(book.current_date.month)))
+            .reward(HardSoftScore.ONE_SOFT)  # Simplified reward
             .as_constraint("Seasonal preference"))
 
 def prefer_popular_authors(constraint_factory: ConstraintFactory):
