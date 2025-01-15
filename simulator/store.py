@@ -102,8 +102,7 @@ class Store:
             sorted_books = random.sample(top_rated + random_selection, 
                                        len(top_rated) + len(random_selection))
             
-            log.info(f"Selected {len(sorted_books)} books "
-                    f"(including {len(top_rated)} top-rated and {len(random_selection)} random)")
+            log.info(f"Selected {len(sorted_books)} books")
             
             # Prepare inventory data with current date
             current_stock = [

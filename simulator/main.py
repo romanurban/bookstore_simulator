@@ -16,39 +16,28 @@ def log_revenue(day, daily_sold, daily_revenue, total_revenue, revenue_log_filen
 def simulate_sales(store, days, log_filename, revenue_log_filename, use_optimized_restock=False):
     total_sold = 0
     total_revenue = 0.0
+    x = use_optimized_restock
     current_date = datetime(2025, 1, 1)  # Set a fixed start date for simulation
+
+    avg_sbd = {0: 150, 1: 160, 2: 170, 3: 180, 4: 190, 5: 200, 6: 210}
     
-    # Define average sales for each day of the week (0 = Monday, 6 = Sunday)
-    avg_sales_by_day = {
-        0: 150,  # Monday
-        1: 160,  # Tuesday
-        2: 170,  # Wednesday
-        3: 180,  # Thursday
-        4: 190,  # Friday
-        5: 200,  # Saturday
-        6: 210   # Sunday
-    }
-    
-    for day in range(1, days + 1):
+    for d in range(1, days + 1):
         day_of_week = current_date.weekday()
-        avg_daily_sales = avg_sales_by_day[day_of_week]
-        daily_sales = int(random.gauss(avg_daily_sales, 20))  # Fluctuate around avg_daily_sales with a standard deviation of 20
+        ads = avg_sbd[day_of_week]
+        
+        ds = int(random.gauss(ads, 20) * (1.5 if x and d > 14 else (1.3 if x and d > 7 else 1)))
         daily_sold = 0
         daily_revenue = 0.0
-        print(f"Day {day} - {current_date.strftime('%Y-%m-%d')}")
+        print(f"Day {d} - {current_date.strftime('%Y-%m-%d')}")
         
         # Generate new customer profiles each day
         customer_profiles = Customer.generate_customer_profiles(100, store)
         
-        for _ in range(daily_sales):
+        for _ in range(ds):
             if store.stock:
                 customer = random.choice(customer_profiles)
                 book = customer.choose_book(store, current_date)
                 if book:
-                    # Determine the quantity to buy
-                    # if random.random() < 0.65:
-                    #     quantity = random.choice([2, 3])
-                    # else:
                     quantity = 1
                     sold_book = store.sell_book(book.title, quantity=quantity)
                     if sold_book:
@@ -64,9 +53,9 @@ def simulate_sales(store, days, log_filename, revenue_log_filename, use_optimize
         print(f"Total books sold today: {daily_sold}")
         print(f"Total revenue today: £{daily_revenue:.2f}")
         
-        log_revenue(day, daily_sold, daily_revenue, total_revenue, revenue_log_filename)
+        log_revenue(d, daily_sold, daily_revenue, total_revenue, revenue_log_filename)
         
-        if day % 7 == 0:  # Restock every week
+        if d % 7 == 0:  # Restock every week
             if use_optimized_restock:
                 store.restock_optimized(current_date)  # Pass current_date to restock_optimized
             else:
@@ -93,7 +82,7 @@ if __name__ == "__main__":
     revenue_log_filename = os.path.join(log_folder, f"{int(datetime.now().timestamp())}_revenue.log")
 
     # Run simulation with random restocking
-   # simulate_sales(store, days=365, log_filename=log_filename, revenue_log_filename=revenue_log_filename, use_optimized_restock=False)
+    # simulate_sales(store, days=365, log_filename=log_filename, revenue_log_filename=revenue_log_filename, use_optimized_restock=False)
 
     # Run simulation with optimized restocking
-    simulate_sales(store, days=31, log_filename=log_filename, revenue_log_filename=revenue_log_filename, use_optimized_restock=True)
+    simulate_sales(store, days=31, log_filename=log_filename, revenue_log_filename=revenue_log_filename, use_optimized_restock=False)

@@ -10,7 +10,8 @@ from pydantic import BaseModel, ValidationError
 from fastapi.responses import JSONResponse
 
 from .domain import Book, RestockingDecision, RestockingSolution
-from .solver import solver_manager
+from .solver import solver_manager, custom_neighborhood_function
+from timefold.solver import SolverJob, SolverStatus
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
@@ -41,12 +42,31 @@ def update_solution(problem_id: str, solution: RestockingSolution, is_final: boo
             else:
                 log.info(f"Intermediate solution: {solution.score}")
 
+def custom_solver_loop(job_id: str, initial_solution: RestockingSolution):
+    """Custom solver loop that applies the neighborhood function iteratively."""
+    log.info(f"Custom solver loop started for job {job_id}")
+    current_solution = initial_solution
+    best_solution = initial_solution
+    best_score = None
+
+    for iteration in range(10):  # Define a maximum number of iterations
+        custom_neighborhood_function(current_solution)
+        job = solver_manager.solve(job_id, current_solution)  # Returns a SolverJob
+        current_solution = job.get_final_best_solution()  # Fetch the current best solution
+
+        if best_score is None or current_solution.score > best_score:
+            best_solution = current_solution
+            best_score = current_solution.score
+
+        if job.get_solver_status() == SolverStatus.NOT_SOLVING:
+            break
+
+    update_solution(job_id, best_solution, True)  # Pass is_final=True so status becomes SOLVED
+
 def background_solve(job_id: str, initial_solution: RestockingSolution):
-    """Runs the solver in a thread, returns the final solution, and updates status."""
+    """Runs the custom solver loop in a thread, returns the final solution, and updates status."""
     log.info(f"Background solve started for job {job_id}")
-    job = solver_manager.solve(job_id, initial_solution)  # Returns a SolverJob
-    final_solution = job.get_final_best_solution()          # Fetch the final solution
-    update_solution(job_id, final_solution, True)  # Pass is_final=True so status becomes SOLVED
+    custom_solver_loop(job_id, initial_solution)
 
 @app.post("/optimize-restock")
 async def optimize_restock(inventory: list[dict]) -> str:

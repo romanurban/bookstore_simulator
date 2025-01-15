@@ -35,7 +35,7 @@ class Inventory:
                 price_str = str(row['price']).replace('£', '')
                 
                 if not is_valid_isbn(str(row['isbn'])):
-                    print(f"Skipping invalid ISBN: {row['isbn']}")
+                    #print(f"Skipping invalid ISBN: {row['isbn']}")
                     continue
 
                 book = Book(
