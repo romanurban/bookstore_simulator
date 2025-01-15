@@ -15,6 +15,7 @@ class Book(JsonDomainBase):
     price: float
     current_stock: int = 10
     avg_daily_sales: float = 0.0
+    remaining_capacity: int = 0
 
 
 @planning_entity

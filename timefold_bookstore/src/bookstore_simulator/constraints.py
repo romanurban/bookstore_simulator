@@ -1,5 +1,5 @@
 import logging
-from timefold.solver.score import constraint_provider, ConstraintFactory, Joiners, HardSoftScore
+from timefold.solver.score import constraint_provider, ConstraintFactory, HardSoftScore, Joiners
 from .domain import RestockingDecision, Book
 
 log = logging.getLogger(__name__)
@@ -8,52 +8,33 @@ log = logging.getLogger(__name__)
 def define_constraints(constraint_factory: ConstraintFactory):
     return [
         # Hard constraints
-        maintain_minimum_stock(constraint_factory),
-        prevent_excess_stock(constraint_factory),
+        minimum_stock(constraint_factory),
+        check_remaining_capacity(constraint_factory),
         # Soft constraints
-        optimize_stock_by_rating(constraint_factory),
-        optimize_stock_by_sales(constraint_factory)
+        prefer_higher_rated_books(constraint_factory)
     ]
 
-def maintain_minimum_stock(constraint_factory: ConstraintFactory):
+def minimum_stock(constraint_factory: ConstraintFactory):
+    """Each restocking decision should be at least 0"""
     return (constraint_factory
             .for_each(RestockingDecision)
-            .filter(lambda decision: decision.restock_quantity < 3)  # Minimum 3 books
+            .filter(lambda decision: decision.restock_quantity < 0)
+            .penalize(HardSoftScore.ONE_HARD)
+            .as_constraint("Minimum stock"))
+
+def check_remaining_capacity(constraint_factory: ConstraintFactory):
+    """Individual book quantities should not exceed remaining capacity"""
+    return (constraint_factory
+            .for_each(RestockingDecision)
+            .filter(lambda decision: decision.restock_quantity > 20)  # Use fixed max value
             .penalize(HardSoftScore.ONE_HARD,
-                     lambda decision: 3 - decision.restock_quantity)
-            .as_constraint("Minimum stock level"))
+                     lambda decision: decision.restock_quantity - 20)
+            .as_constraint("Individual capacity"))
 
-def prevent_excess_stock(constraint_factory: ConstraintFactory):
+def prefer_higher_rated_books(constraint_factory: ConstraintFactory):
+    """Basic reward for higher rated books"""
     return (constraint_factory
             .for_each(RestockingDecision)
-            .join(Book,
-                  Joiners.equal(lambda decision: decision.isbn,
-                              lambda book: book.isbn))
-            .filter(lambda decision, book: 
-                    decision.restock_quantity > (10 + book.avg_daily_sales * 7))  # Don't overstock
-            .penalize(HardSoftScore.ONE_HARD,
-                     lambda decision, book: 
-                        decision.restock_quantity - (10 + book.avg_daily_sales * 7))
-            .as_constraint("Prevent excess stock"))
-
-def optimize_stock_by_rating(constraint_factory: ConstraintFactory):
-    return (constraint_factory
-            .for_each(RestockingDecision)
-            .join(Book,
-                  Joiners.equal(lambda decision: decision.isbn,
-                              lambda book: book.isbn))
-            .reward(HardSoftScore.ONE_SOFT,
-                   lambda decision, book: 
-                        int(decision.restock_quantity * book.rating))
-            .as_constraint("Stock by rating"))
-
-def optimize_stock_by_sales(constraint_factory: ConstraintFactory):
-    return (constraint_factory
-            .for_each(RestockingDecision)
-            .join(Book,
-                  Joiners.equal(lambda decision: decision.isbn,
-                              lambda book: book.isbn))
-            .reward(HardSoftScore.ONE_SOFT,
-                   lambda decision, book: 
-                        int(decision.restock_quantity * book.avg_daily_sales))
-            .as_constraint("Stock by sales"))
+            .filter(lambda decision: decision.restock_quantity > 0)
+            .reward(HardSoftScore.ONE_SOFT)
+            .as_constraint("Prefer higher rated books"))

@@ -82,12 +82,19 @@ class Store:
         log.info(f"Books before restocking: {sum(self.stock.values())}")
         
         try:
-            # Sort books by rating and take top 1000
+            # Calculate remaining capacity
+            current_total = sum(self.stock.values())
+            remaining_capacity = self.storage_capacity - current_total
+            log.info(f"Remaining storage capacity: {remaining_capacity}")
+            
+            # Get exactly 3000 + remaining_capacity books
             sorted_books = sorted(self.inventory.books, 
                                 key=lambda x: float(x.average_rating) if x.average_rating else 0, 
-                                reverse=True)[:1000]
+                                reverse=True)[:3000 + remaining_capacity]
             
-            # Prepare inventory data with limited books
+            log.info(f"Selected exactly {len(sorted_books)} books (3000 base + {remaining_capacity} capacity)")
+            
+            # Prepare inventory data with randomly selected books
             current_stock = [
                 {
                     "isbn": book.isbn,
@@ -97,7 +104,8 @@ class Store:
                     "current_stock": self.stock.get(book, 0),
                     "avg_daily_sales": 2.5,
                     "rating": book.average_rating,
-                    "restock_quantity": 10  # Initialize with non-zero value as starting point
+                    "restock_quantity": 10,  # Initialize with non-zero value as starting point
+                    "remaining_capacity": remaining_capacity  # Add remaining capacity to each entry
                 }
                 for book in sorted_books
             ]
@@ -116,7 +124,7 @@ class Store:
             log.info(f"Got job_id: {job_id}")
 
             # Poll for solution
-            max_retries = 20  # Reduced retries but increased sleep
+            max_retries = 100  # Reduced retries but increased sleep
             attempt = 1
             
             while attempt <= max_retries:
@@ -127,7 +135,7 @@ class Store:
                 
                 print(f"Attempt {attempt}: Status = {status['status']} Score = {status.get('score', 'N/A')}")
                 
-                if status["status"] in ["SOLVED", "SOLVING"]:
+                if status["status"] in ["SOLVED"]:
                     solution_response = requests.get(
                         f"http://localhost:8080/solutions/{job_id}",
                         timeout=10
@@ -182,7 +190,7 @@ class Store:
                             return self._basic_restock()
                 
                 attempt += 1
-                time.sleep(5)
+                time.sleep(0.5)
             
             log.warning("Optimization timed out - falling back to basic optimization")
             return self._basic_restock()
