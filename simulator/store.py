@@ -2,8 +2,6 @@ import random
 import logging
 from inventory import Inventory, Book
 from customer import Customer
-import httpx
-import asyncio
 from typing import List, Tuple
 import time
 import requests
@@ -88,20 +86,21 @@ class Store:
             log.info(f"Remaining storage capacity: {remaining_capacity}")
             
             # Create a diverse selection of books
-            # Take some high-rated books
-            top_rated = sorted(self.inventory.books, 
-                             key=lambda x: float(x.average_rating) if x.average_rating else 0, 
-                             reverse=True)[:1000]
+            # Take some high-rated books with random noise in rating
+            top_rated = sorted(
+                self.inventory.books,
+                key=lambda x: (float(x.average_rating) if x.average_rating else 0) + random.uniform(-0.2, 0.2),
+                reverse=True
+            )[:1000]  # Keep exactly 1000 top books
             
-            # Take some random books
+            # Take exactly 2000 random books from remaining
             remaining_books = [b for b in self.inventory.books if b not in top_rated]
             random_selection = random.sample(remaining_books, 
-                                          min(2000 + remaining_capacity, len(remaining_books)))
+                                          min(2000+remaining_capacity, len(remaining_books)))  # Fixed at 2000
             
             # Combine and shuffle
             sorted_books = random.sample(top_rated + random_selection, 
-                                       min(3000 + remaining_capacity, 
-                                           len(top_rated) + len(random_selection)))
+                                       len(top_rated) + len(random_selection))
             
             log.info(f"Selected {len(sorted_books)} books "
                     f"(including {len(top_rated)} top-rated and {len(random_selection)} random)")
@@ -137,7 +136,7 @@ class Store:
             log.info(f"Got job_id: {job_id}")
 
             # Poll for solution
-            max_retries = 100  # Reduced retries but increased sleep
+            max_retries = 300  # Reduced retries but increased sleep
             attempt = 1
             
             while attempt <= max_retries:

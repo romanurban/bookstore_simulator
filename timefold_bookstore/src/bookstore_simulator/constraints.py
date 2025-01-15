@@ -11,8 +11,9 @@ log = logging.getLogger(__name__)
 def define_constraints(constraint_factory: ConstraintFactory):
     return [
         # Hard constraints
-        minimum_stock(constraint_factory),
+        #minimum_stock(constraint_factory),
         limit_total_capacity(constraint_factory),
+        #must_match_exact_capacity(constraint_factory),
         # Soft constraints
         prefer_higher_rated_books(constraint_factory),
         prefer_seasonal_books(constraint_factory),
@@ -38,7 +39,7 @@ def limit_total_capacity(constraint_factory: ConstraintFactory):
                      ConstraintCollectors.sum(lambda decision, book: decision.restock_quantity))
             .filter(lambda capacity, total: total > capacity)
             .penalize(HardSoftScore.ONE_HARD,
-                     lambda capacity, total: total - capacity)
+                     lambda capacity, total: (total - capacity) * 2)
             .as_constraint("Total capacity"))
 
 def prefer_higher_rated_books(constraint_factory: ConstraintFactory):
@@ -56,7 +57,7 @@ def prefer_higher_rated_books(constraint_factory: ConstraintFactory):
             .as_constraint("Prefer higher rated books"))
 
 def prefer_seasonal_books(constraint_factory: ConstraintFactory):
-    """Reward books matching current month's seasonal keywords"""
+    """Reward books matching current month's seasonal keywords with 20x weight"""
     return (constraint_factory
             .for_each(RestockingDecision)
             .join(Book,
@@ -66,7 +67,7 @@ def prefer_seasonal_books(constraint_factory: ConstraintFactory):
                     any(keyword.lower() in str(book.title).lower() or 
                         keyword.lower() in str(book.author).lower()
                         for keyword in get_seasonal_keywords(book.current_date.month)))
-            .reward(HardSoftScore.ONE_SOFT)  # Simplified reward
+            .reward(HardSoftScore.of(0, 20))  # Using of() to create a stronger soft score
             .as_constraint("Seasonal preference"))
 
 def prefer_popular_authors(constraint_factory: ConstraintFactory):
