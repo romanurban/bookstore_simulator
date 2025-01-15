@@ -82,17 +82,28 @@ class Store:
         log.info(f"Books before restocking: {sum(self.stock.values())}")
         
         try:
-            # Calculate remaining capacity
             current_total = sum(self.stock.values())
             remaining_capacity = self.storage_capacity - current_total
             log.info(f"Remaining storage capacity: {remaining_capacity}")
             
-            # Get exactly 3000 + remaining_capacity books
-            sorted_books = sorted(self.inventory.books, 
-                                key=lambda x: float(x.average_rating) if x.average_rating else 0, 
-                                reverse=True)[:3000 + remaining_capacity]
+            # Create a diverse selection of books
+            # Take some high-rated books
+            top_rated = sorted(self.inventory.books, 
+                             key=lambda x: float(x.average_rating) if x.average_rating else 0, 
+                             reverse=True)[:1000]
             
-            log.info(f"Selected exactly {len(sorted_books)} books (3000 base + {remaining_capacity} capacity)")
+            # Take some random books
+            remaining_books = [b for b in self.inventory.books if b not in top_rated]
+            random_selection = random.sample(remaining_books, 
+                                          min(2000 + remaining_capacity, len(remaining_books)))
+            
+            # Combine and shuffle
+            sorted_books = random.sample(top_rated + random_selection, 
+                                       min(3000 + remaining_capacity, 
+                                           len(top_rated) + len(random_selection)))
+            
+            log.info(f"Selected {len(sorted_books)} books "
+                    f"(including {len(top_rated)} top-rated and {len(random_selection)} random)")
             
             # Prepare inventory data with randomly selected books
             current_stock = [

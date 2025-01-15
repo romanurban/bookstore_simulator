@@ -2,6 +2,8 @@ import logging
 from timefold.solver.score import constraint_provider, ConstraintFactory, HardSoftScore, Joiners
 from timefold.solver.score import ConstraintCollectors
 from .domain import RestockingDecision, Book
+from datetime import datetime
+from .utils import get_seasonal_keywords
 
 log = logging.getLogger(__name__)
 
@@ -12,7 +14,9 @@ def define_constraints(constraint_factory: ConstraintFactory):
         minimum_stock(constraint_factory),
         limit_total_capacity(constraint_factory),
         # Soft constraints
-        prefer_higher_rated_books(constraint_factory)
+        prefer_higher_rated_books(constraint_factory),
+        prefer_seasonal_books(constraint_factory),
+        prefer_popular_authors(constraint_factory)
     ]
 
 def minimum_stock(constraint_factory: ConstraintFactory):
@@ -38,9 +42,40 @@ def limit_total_capacity(constraint_factory: ConstraintFactory):
             .as_constraint("Total capacity"))
 
 def prefer_higher_rated_books(constraint_factory: ConstraintFactory):
-    """Basic reward for higher rated books"""
+    """Reward books based on their rating - using simple integer ranges"""
     return (constraint_factory
             .for_each(RestockingDecision)
             .filter(lambda decision: decision.restock_quantity > 0)
-            .reward(HardSoftScore.ONE_SOFT)
+            .reward(HardSoftScore.ONE_SOFT,
+                   lambda decision: 
+                   5 if decision.rating >= 4.5 else
+                   4 if decision.rating >= 4.0 else
+                   3 if decision.rating >= 3.5 else
+                   2 if decision.rating >= 3.0 else
+                   1)  # Simple integer rewards based on rating ranges
             .as_constraint("Prefer higher rated books"))
+
+def prefer_seasonal_books(constraint_factory: ConstraintFactory):
+    """Reward books matching current month's seasonal keywords"""
+    return (constraint_factory
+            .for_each(RestockingDecision)
+            .filter(lambda decision: decision.restock_quantity > 0)
+            .reward(HardSoftScore.ONE_SOFT,
+                   lambda decision: decision.restock_quantity)
+            .as_constraint("Seasonal preference"))
+
+def prefer_popular_authors(constraint_factory: ConstraintFactory):
+    """Reward books by popular authors (high rating & frequency)"""
+    return (constraint_factory
+            .for_each(RestockingDecision)
+            .join(Book,
+                  Joiners.equal(lambda decision: decision.isbn,
+                              lambda book: book.isbn))
+            .group_by(
+                lambda decision, book: book.author,  # Group key
+                ConstraintCollectors.count_bi()  # Count collector
+            )
+            .filter(lambda author, count: count >= 2)  # Authors with multiple books
+            .reward(HardSoftScore.ONE_SOFT,
+                   lambda author, count: count)
+            .as_constraint("Popular authors"))
