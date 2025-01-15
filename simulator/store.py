@@ -190,7 +190,7 @@ class Store:
                             return self._basic_restock()
                 
                 attempt += 1
-                time.sleep(0.5)
+                time.sleep(2)
             
             log.warning("Optimization timed out - falling back to basic optimization")
             return self._basic_restock()
