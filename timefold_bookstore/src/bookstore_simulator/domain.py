@@ -1,7 +1,7 @@
 from datetime import datetime
 from timefold.solver import SolverStatus
 from timefold.solver.domain import *
-from timefold.solver.score import HardSoftScore  # Changed from HardSoftDecimalScore
+from timefold.solver.score import HardSoftScore  
 from typing import Annotated
 from pydantic import Field
 
@@ -36,7 +36,7 @@ class RestockingDecision(JsonDomainBase):
 class RestockingSolution(JsonDomainBase):
     books: Annotated[list[Book], ProblemFactCollectionProperty]
     decisions: Annotated[list[RestockingDecision], PlanningEntityCollectionProperty]
-    quantities: Annotated[list[int], ValueRangeProvider] = list(range(0, 5))  # Changed range to 0-5
-    score: Annotated[HardSoftScore | None,  # Changed from HardSoftDecimalScore
+    quantities: Annotated[list[int], ValueRangeProvider] = list(range(0, 5))  
+    score: Annotated[HardSoftScore | None,  
                      PlanningScore, Field(default=None)]
     solver_status: Annotated[SolverStatus | None, Field(default=None)]

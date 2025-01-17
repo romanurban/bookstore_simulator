@@ -212,9 +212,9 @@ class Customer:
 
         for book in store.stock.keys():
             if any(keyword in (book.title + " " + book.authors) for keyword in keywords):
-                if book.price <= 8.0 and book.average_rating >= 4.5:  # Changed from 9.0 to 8.0
+                if book.price <= 8.0 and book.average_rating >= 4.5:  
                     seasonal_books.append(book)
-            elif book.price <= 8.0 and book.average_rating >= 4.5:  # Changed from 9.0 to 8.0
+            elif book.price <= 8.0 and book.average_rating >= 4.5:  
                 backup_books.append(book)
 
         # Try seasonal good books first
@@ -255,7 +255,7 @@ class Customer:
             customer_profiles.append(Customer("rating", None))
             
         for _ in range(num_customers * 35 // 100):  # 35% price preference
-            customer_profiles.append(Customer("price", 8.0))  # Changed from 9.0 to 8.0
+            customer_profiles.append(Customer("price", 8.0))  
             
         remaining = num_customers - len(customer_profiles)  # ~4% no specific preference
         for _ in range(remaining):
