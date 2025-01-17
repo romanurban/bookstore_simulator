@@ -128,71 +128,101 @@ class Customer:
             return self._choose_by_none(store, current_date)
 
     def _choose_by_author(self, store):
-        for book in store.stock.keys():
-            if self.preference_value in book.authors:
-                return book
-        return None
+        matched_books = [book for book in store.stock.keys() 
+                        if self.preference_value in book.authors]
+        # 80% chance to walk away if no exact match
+        if not matched_books and random.random() < 0.8:
+            return None
+        return random.choice(matched_books) if matched_books else None
 
     def _choose_by_genre(self, store, current_date):
         month = current_date.month
         keywords = self.seasonal_keywords.get(month, [])
+        seasonal_matches = []
+        genre_matches = []
+        
         for book in store.stock.keys():
             if self.preference_value == book.genre:
                 if any(keyword in (book.title + " " + book.authors) for keyword in keywords):
-                    if random.random() < 0.6:
-                        return book
+                    seasonal_matches.append(book)
+                genre_matches.append(book)
+        
+        # First try seasonal matches
+        if seasonal_matches:
+            return random.choice(seasonal_matches)
+        # Then try genre matches, but 80% chance to walk away if not seasonal
+        if genre_matches and random.random() > 0.8:
+            return random.choice(genre_matches)
         return None
 
     def _choose_by_title(self, store):
         for book in store.stock.keys():
             if self.preference_value == book.title:
                 return book
+        # 80% chance to walk away if exact title not found
+        if random.random() < 0.8:
+            return None
         return None
 
     def _choose_by_rating(self, store, current_date):
         month = current_date.month
         keywords = self.seasonal_keywords.get(month, [])
-        highest_rated_book = None
-        highest_rating = 4.0
+        seasonal_rated_books = []
+        high_rated_books = []
+        
         for book in store.stock.keys():
-            if book.average_rating > highest_rating:
+            if book.average_rating >= 4.5:
                 if any(keyword in (book.title + " " + book.authors) for keyword in keywords):
-                    if random.random() < 0.6:
-                        highest_rated_book = book
-                        highest_rating = book.average_rating
-        return highest_rated_book
+                    seasonal_rated_books.append(book)
+                high_rated_books.append(book)
+        
+        # Try seasonal high-rated books first
+        if seasonal_rated_books:
+            return random.choice(seasonal_rated_books)
+        # Then try just high-rated books, but 80% chance to walk away if not seasonal
+        if high_rated_books and random.random() > 0.8:
+            return random.choice(high_rated_books)
+        return None
 
     def _choose_by_price(self, store):
+        month = datetime.now().month
+        keywords = self.seasonal_keywords.get(month, [])
+        seasonal_cheap_books = []
+        cheap_books = []
+        
         for book in store.stock.keys():
-            if book.price <= self.preference_value:
-                return book
+            if book.price <= 8.0:  # Changed from 9.0 to 8.0
+                if any(keyword in (book.title + " " + book.authors) for keyword in keywords):
+                    seasonal_cheap_books.append(book)
+                cheap_books.append(book)
+        
+        # Try seasonal affordable books first
+        if seasonal_cheap_books:
+            return min(seasonal_cheap_books, key=lambda x: x.price)
+        # Then try just cheap books, but 80% chance to walk away if not seasonal
+        if cheap_books and random.random() > 0.8:
+            return min(cheap_books, key=lambda x: x.price)
         return None
 
     def _choose_by_none(self, store, current_date):
         month = current_date.month
         keywords = self.seasonal_keywords.get(month, [])
-        highest_rated_book = None
-        highest_rating = 4.0
-        affordable_books = []
-
-        for book in store.stock.keys():
-            if book.average_rating > highest_rating:
-                highest_rated_book = book
-                highest_rating = book.average_rating
-            if book.price < 15:
-                affordable_books.append(book)
+        seasonal_books = []
+        backup_books = []
 
         for book in store.stock.keys():
             if any(keyword in (book.title + " " + book.authors) for keyword in keywords):
-                if random.random() < 0.65:
-                    return book
+                if book.price <= 8.0 and book.average_rating >= 4.5:  # Changed from 9.0 to 8.0
+                    seasonal_books.append(book)
+            elif book.price <= 8.0 and book.average_rating >= 4.5:  # Changed from 9.0 to 8.0
+                backup_books.append(book)
 
-        if highest_rated_book and random.random() < 0.7:
-            return highest_rated_book
-
-        if affordable_books and random.random() < 0.7:
-            return random.choice(affordable_books)
-
+        # Try seasonal good books first
+        if seasonal_books:
+            return random.choice(seasonal_books)
+        # Then try backup books, but 80% chance to walk away if not seasonal
+        if backup_books and random.random() > 0.8:
+            return random.choice(backup_books)
         return None
 
     @staticmethod
@@ -202,27 +232,33 @@ class Customer:
         inventory_authors = [book.authors for book in store.inventory.books]
         inventory_genres = [book.genre for book in store.inventory.books]
 
-        # Find the most popular authors
+        # Find the most popular authors and genres
         author_counts = Counter(inventory_authors)
         most_popular_authors = [author for author, count in author_counts.most_common(5)]
-
-        # Find the most popular genres
         genre_counts = Counter(inventory_genres)
         most_popular_genres = [genre for genre, count in genre_counts.most_common(5)]
 
-        for _ in range(num_customers // 20):  # 5% prefer a particular title
+        # New distribution with increased seasonal/genre importance
+        for _ in range(num_customers // 50):  # 2% title preference
             title = random.choice(inventory_titles)
             customer_profiles.append(Customer("title", title))
-        for _ in range(num_customers // 7):  # 15% prefer a particular author
+            
+        for _ in range(num_customers // 25):  # 4% author preference
             author = random.choice(most_popular_authors)
             customer_profiles.append(Customer("author", author))
-        for _ in range(num_customers // 10):  # 10% prefer a particular genre
+            
+        for _ in range(num_customers * 25 // 100):  # 25% genre/seasonal preference (major increase)
             genre = random.choice(most_popular_genres)
             customer_profiles.append(Customer("genre", genre))
-        # for _ in range(num_customers // 10):  # 10% prefer highest rating books
-        #     customer_profiles.append(Customer("rating", None))
-        # for _ in range(num_customers // 5):  # 20% prefer books under a specific price
-        #     customer_profiles.append(Customer("price", 15.0))
-        for _ in range(num_customers // 2):  # 50% have no specific preference
+            
+        for _ in range(num_customers * 30 // 100):  # 30% rating preference
+            customer_profiles.append(Customer("rating", None))
+            
+        for _ in range(num_customers * 35 // 100):  # 35% price preference
+            customer_profiles.append(Customer("price", 8.0))  # Changed from 9.0 to 8.0
+            
+        remaining = num_customers - len(customer_profiles)  # ~4% no specific preference
+        for _ in range(remaining):
             customer_profiles.append(Customer("none", None))
+            
         return customer_profiles

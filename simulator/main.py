@@ -24,7 +24,7 @@ def simulate_sales(store, days, log_filename, revenue_log_filename, solver_type=
     total_revenue = 0.0
     current_date = datetime(2025, 1, 1)  # Set a fixed start date for simulation
 
-    avg_sbd = {0: 150, 1: 160, 2: 170, 3: 180, 4: 190, 5: 200, 6: 210}
+    avg_sbd = {0: 510, 1: 560, 2: 540, 3: 590, 4: 550, 5: 500, 6: 550}
     
     # Add metrics tracking
     restock_metrics = []
@@ -66,44 +66,27 @@ def simulate_sales(store, days, log_filename, revenue_log_filename, solver_type=
         if d % 7 == 0:  # Restock every week
             if solver_type == "alternative":
                 decisions, metrics = store.restock_alternative(current_date)
-                metrics['day'] = d
-                restock_metrics.append(metrics)
             elif solver_type == "timefold":
-                store.restock_timefold_optimized(current_date)
+                decisions, metrics = store.restock_timefold_optimized(current_date)
             else:
                 decisions, metrics = store.restock()
-                metrics['day'] = d
-                restock_metrics.append(metrics)
+            
+            metrics['day'] = d
+            restock_metrics.append(metrics)
         store.list_stock()
         
         current_date += timedelta(days=1)
     
     # Analysis at the end of simulation
     if restock_metrics:  # Now works for both basic and alternative
-        print(f"\n{solver_type.capitalize()} Solver Performance Analysis:")
+        print(f"\n{solver_type.capitalize()} Solver Final Results:")
         print("=======================================")
-        avg_metrics = {
-            'avg_diversity_improvement': sum(m['after_diversity'] - m['before_diversity'] for m in restock_metrics) / len(restock_metrics),
-            'avg_rating_improvement': sum(m['after_avg_rating'] - m['before_avg_rating'] for m in restock_metrics) / len(restock_metrics),
-            'avg_seasonal_improvement': sum(m['after_seasonal_matches'] - m['before_seasonal_matches'] for m in restock_metrics) / len(restock_metrics),
-            'avg_restock_quantity': sum(m['restock_quantity'] for m in restock_metrics) / len(restock_metrics),
-            'avg_unique_books': sum(m['unique_books_added'] for m in restock_metrics) / len(restock_metrics),
-        }
         
-        print(f"Average Improvements per Restock:")
-        print(f"- Book Diversity: {avg_metrics['avg_diversity_improvement']:.2f}")
-        print(f"- Rating: {avg_metrics['avg_rating_improvement']:.2f}")
-        print(f"- Seasonal Matches: {avg_metrics['avg_seasonal_improvement']:.2f}")
-        print(f"- Restock Quantity: {avg_metrics['avg_restock_quantity']:.2f}")
-        print(f"- Unique Books Added: {avg_metrics['avg_unique_books']:.2f}")
-        
-        # Save metrics to file
+        # Only save raw metrics to file for later analysis
         metrics_filename = os.path.join(log_folder, f"{int(datetime.now().timestamp())}_metrics.log")
         with open(metrics_filename, 'w') as f:
             for metric in restock_metrics:
                 f.write(f"Day {metric['day']}: {str(metric)}\n")
-            f.write("\nAverages:\n")
-            f.write(str(avg_metrics))
     
     print(f"Total books sold over {days} days: {total_sold}")
     print(f"Total revenue over {days} days: £{total_revenue:.2f}")
@@ -123,6 +106,6 @@ if __name__ == "__main__":
     revenue_log_filename = os.path.join(log_folder, f"{int(datetime.now().timestamp())}_revenue.log")
 
     # Run simulation with different solvers
-    #simulate_sales(store, days=31, log_filename=log_filename, revenue_log_filename=revenue_log_filename, solver_type="basic")
+    # simulate_sales(store, days=31, log_filename=log_filename, revenue_log_filename=revenue_log_filename, solver_type="basic")
     # simulate_sales(store, days=31, log_filename=log_filename, revenue_log_filename=revenue_log_filename, solver_type="timefold")
     simulate_sales(store, days=31, log_filename=log_filename, revenue_log_filename=revenue_log_filename, solver_type="alternative")

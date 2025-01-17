@@ -11,26 +11,26 @@ def alt_solve(store, books: List['Book'], remaining_capacity: int, current_date:
         """Calculate a preference score based on known customer behaviors"""
         score = 0.0
         
-        # Author popularity (15% of customers prefer specific authors)
-        author_weight = 0.15
-        if book.authors in store.inventory.books[:1000]:  # Assuming first 1000 are popular
-            score += author_weight * 100
-            
-        # Genre preference (10% of customers prefer specific genres)
-        genre_weight = 0.10
-        popular_genres = ["Fiction", "Mystery", "Romance", "Fantasy"]  # Add more based on data
-        if book.genre in popular_genres:
-            score += genre_weight * 100
-            
-        # Rating preference (higher rated books are preferred)
-        rating_weight = 0.25
+        # Rating preference (33% of customers)
+        rating_weight = 0.33
         if book.average_rating:
             score += rating_weight * float(book.average_rating) * 20
             
-        # Price sensitivity (20% of customers prefer books under 15.0)
-        price_weight = 0.20
-        if float(book.price) <= 15.0:
+        # Price sensitivity (33% of customers prefer books under 8.0)
+        price_weight = 0.33
+        if float(book.price) <= 8.0:  # Changed from 9.0 to 8.0
             score += price_weight * 100
+        
+        # Author popularity (5% of customers)
+        author_weight = 0.05
+        if book.authors in store.inventory.books[:1000]:
+            score += author_weight * 100
+            
+        # Genre preference (5% of customers)
+        genre_weight = 0.05
+        popular_genres = ["Fiction", "Mystery", "Romance", "Fantasy"]
+        if book.genre in popular_genres:
+            score += genre_weight * 100
             
         return score
 
@@ -39,70 +39,75 @@ def alt_solve(store, books: List['Book'], remaining_capacity: int, current_date:
         total_quantity = 0
         month = current_date.month
         seasonal_keywords = Customer.seasonal_keywords.get(month, [])
+        unique_authors = set()
         
         for book, quantity in decisions:
+            if total_quantity > remaining_capacity:
+                return float('inf')
+            
             total_quantity += quantity
+            unique_authors.add(book.authors)
             
-            # Capacity penalty (highest priority)
-            capacity_diff = abs(remaining_capacity - total_quantity)
-            total_cost += 3000 * capacity_diff
+            # Price sensitivity (major factor but reduced weight)
+            if book.price <= 8.0:  # Changed from 9.0 to 8.0
+                total_cost -= 100 * quantity
+            else:
+                total_cost += (book.price - 8.0) * quantity * 20  # Changed from 9.0 to 8.0
             
-            # Customer preference score (negative because we want to minimize cost)
-            preference_score = calculate_preference_score(book)
-            total_cost -= preference_score * quantity
-            
-            # Seasonal relevance
-            book_text = f"{book.title} {book.authors} {book.genre}".lower()
-            seasonal_matches = sum(1 for keyword in seasonal_keywords if keyword.lower() in book_text)
-            total_cost -= 30 * seasonal_matches * quantity
-            
-            # Stock balance (encourage diverse stock)
-            current_stock = store.stock.get(book, 0)
-            if current_stock < 5:
-                total_cost -= 15 * quantity  # Encourage restocking low stock
-            elif current_stock > 50:
-                total_cost += 10 * quantity  # Discourage overstocking single titles
-            
-            # Price range optimization
-            price = float(book.price)
-            if 10 <= price <= 30:
-                total_cost -= 8 * quantity  # Prefer middle-range prices
-                
-            # Rating-based stocking
+            # Rating importance (reduced weight)
             rating = float(book.average_rating if book.average_rating else 0)
             if rating >= 4.5:
-                total_cost -= 25 * quantity  # Heavily favor highly-rated books
-            elif rating >= 4.0:
-                total_cost -= 15 * quantity  # Moderately favor well-rated books
+                total_cost -= rating * quantity * 30  # Reduced from 40
+            
+            # Author diversity bonus (new)
+            if len(unique_authors) < 20:  # Encourage at least 20 different authors
+                total_cost += 200  # Penalty for low diversity
+            
+            # Seasonal and stock balance (unchanged)
+            seasonal_matches = sum(1 for keyword in seasonal_keywords 
+                                if keyword.lower() in f"{book.title} {book.authors}".lower())
+            total_cost -= seasonal_matches * quantity * 20
+            
+            current_stock = store.stock.get(book, 0)
+            if current_stock < 3:
+                total_cost -= 50 * quantity
+            elif current_stock > 30:
+                total_cost += 40 * quantity
+
+        # Additional diversity incentives
+        author_count_bonus = len(unique_authors) * 50  # Reward for each unique author
+        total_cost -= author_count_bonus
         
+        # Capacity utilization (unchanged)
+        if total_quantity < remaining_capacity * 0.8:
+            total_cost += (remaining_capacity - total_quantity) * 10
+            
         return total_cost
 
     def create_neighbor(current_decisions: List[Tuple['Book', int]]) -> List[Tuple['Book', int]]:
-        """Generate a neighboring solution with small modifications."""
         new_decisions = deepcopy(current_decisions)
-        current_total = sum(qty for _, qty in new_decisions)
+        current_authors = set(book.authors for book, _ in new_decisions)
         
-        # Adjust quantities to approach target capacity
-        if current_total < remaining_capacity:
-            # Add more books or increase quantities
-            if random.random() < 0.6 or not new_decisions:  # Higher chance to add new books when under capacity
-                available_books = [b for b in books if b not in [d[0] for d in new_decisions]]
-                if available_books:
-                    new_book = random.choice(available_books)
-                    new_qty = min(random.randint(5, 20), remaining_capacity - current_total)
-                    new_decisions.append((new_book, new_qty))
-            else:
-                # Increase existing quantities
-                idx = random.randrange(len(new_decisions))
-                book, qty = new_decisions[idx]
-                increase = min(random.randint(1, 10), remaining_capacity - current_total)
-                new_decisions[idx] = (book, qty + increase)
+        if random.random() < 0.4:  # 40% chance to add new author
+            # Try to add books from new authors
+            available_books = [b for b in books 
+                             if b not in [d[0] for d in new_decisions]
+                             and b.authors not in current_authors
+                             and b.price <= 8.0  # Fixed: Changed from 9.0 to 8.0
+                             and float(b.average_rating or 0) >= 4.5]  # Fixed: Changed from 4.0 to 4.5
+            if available_books:
+                new_book = random.choice(available_books)
+                new_qty = random.randint(3, 10)
+                new_decisions.append((new_book, new_qty))
         else:
-            # Regular modifications
+            # Original modification logic
             if new_decisions:
                 idx = random.randrange(len(new_decisions))
                 book, qty = new_decisions[idx]
-                delta = random.choice([-2, -1, 1, 2])
+                if book.price <= 8.0 and book.average_rating >= 4.5:  # Fixed: Changed values
+                    delta = random.randint(1, 5)
+                else:
+                    delta = random.randint(-5, -1)
                 new_qty = max(0, qty + delta)
                 if new_qty == 0:
                     new_decisions.pop(idx)
@@ -117,14 +122,26 @@ def alt_solve(store, books: List['Book'], remaining_capacity: int, current_date:
     
     # Start with highly-rated seasonal books
     seasonal_books = [b for b in books if any(k.lower() in f"{b.title} {b.authors} {b.genre}".lower() 
-                     for k in Customer.seasonal_keywords.get(current_date.month, []))]
+                     for k in Customer.seasonal_keywords.get(current_date.month, []))]  # Changed to use utils function
     
-    for book in sorted(seasonal_books, key=lambda x: float(x.average_rating or 0), reverse=True)[:20]:
-        if initial_total < remaining_capacity:
-            qty = min(random.randint(10, 30), remaining_capacity - initial_total)
+    # Calculate seasonal portion based on total capacity
+    # Use 40% of capacity for seasonal books since they're highly likely to sell
+    seasonal_portion = int(remaining_capacity * 0.4)  
+    
+    # Filter seasonal books by rating and price for better selection
+    seasonal_books = [b for b in seasonal_books 
+                     if float(b.average_rating or 0) >= 4.5  # Fixed: Changed from 4.0 to 4.5
+                     and float(b.price) <= 8.0]  # Fixed: Changed from 9.0 to 8.0
+    
+    # Take top rated seasonal books without arbitrary limits
+    for book in sorted(seasonal_books, key=lambda x: float(x.average_rating or 0), reverse=True):
+        if initial_total < seasonal_portion:
+            # Calculate quantity based on remaining seasonal portion
+            remaining_seasonal = seasonal_portion - initial_total
+            qty = min(15, max(5, remaining_seasonal // 10))  # Dynamic quantity
             current_decisions.append((book, qty))
             initial_total += qty
-    
+
     # Fill remaining capacity with popular books
     remaining_books = sorted(
         [b for b in books if b not in [d[0] for d in current_decisions]],

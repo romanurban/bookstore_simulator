@@ -48,10 +48,8 @@ def prefer_higher_rated_books(constraint_factory: ConstraintFactory):
             .filter(lambda decision: decision.restock_quantity > 0)
             .reward(HardSoftScore.ONE_SOFT,
                    lambda decision: 
-                   25 if decision.rating >= 4.8 else  # Exponential scaling
-                   16 if decision.rating >= 4.5 else
-                   9 if decision.rating >= 4.0 else
-                   4 if decision.rating >= 3.5 else
+                   50 if decision.rating >= 4.8 else 
+                   25 if decision.rating >= 4.5 else
                    1)
             .as_constraint("Prefer higher rated books"))
 
@@ -70,13 +68,13 @@ def prefer_seasonal_books(constraint_factory: ConstraintFactory):
             .as_constraint("Seasonal preference"))
 
 def prefer_affordable_books(constraint_factory: ConstraintFactory):
-    """Reward books under £15 to maintain affordable options"""
+    """Reward books under £9 to maintain affordable options"""
     return (constraint_factory
             .for_each(RestockingDecision)
             .join(Book,
                   Joiners.equal(lambda decision: decision.isbn,
                               lambda book: book.isbn))
-            .filter(lambda decision, book: book.price < 15.0)
+            .filter(lambda decision, book: book.price < 8.0)
             .reward(HardSoftScore.ONE_SOFT,
                    lambda decision, book: 5)
             .as_constraint("Affordable books preference"))

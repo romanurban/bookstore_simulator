@@ -62,23 +62,112 @@ class Store:
         log.debug(f"{title} is not in stock.")
         return None
 
+    def _collect_metrics(self, current_date, decisions=None, prefix=""):
+        """Helper function to collect metrics about stock state."""
+        month = current_date.month
+        seasonal_keywords = Customer.seasonal_keywords.get(month, [])
+        
+        def calculate_stock_metrics():
+            """Calculate metrics for current stock state"""
+            total = sum(self.stock.values())
+            rating_sum = sum(float(book.average_rating or 0) * qty for book, qty in self.stock.items())
+            avg_rating = rating_sum / total if total > 0 else 0
+            seasonal = sum(1 for book in self.stock.keys() 
+                         if any(k.lower() in f"{book.title} {book.authors} {book.genre}".lower() 
+                              for k in seasonal_keywords))
+            affordable_books = sum(qty for book, qty in self.stock.items() if book.price <= 8.0)  # Changed from 9.0 to 8.0
+            affordable_percentage = (affordable_books / total * 100) if total > 0 else 0
+            
+            return {
+                'total': total,
+                'avg_rating': avg_rating,
+                'seasonal_matches': seasonal,
+                'affordable_books': affordable_books,
+                'affordable_percentage': affordable_percentage
+            }
+
+        # If we have decisions, these are "after" metrics
+        if decisions:
+            after_total = sum(self.stock.values())
+            after_affordable = sum(qty for book, qty in self.stock.items() if book.price <= 8.0)
+            
+            metrics = {
+                'after_total': after_total,
+                'after_avg_rating': (sum(float(book.average_rating or 0) * qty 
+                                   for book, qty in self.stock.items()) / 
+                                   after_total if after_total else 0),
+                'after_seasonal_matches': sum(1 for book in self.stock.keys() 
+                                         if any(k.lower() in f"{book.title} {book.authors} {book.genre}".lower() 
+                                              for k in seasonal_keywords)),
+                'after_affordable_books': after_affordable,
+                'after_affordable_percentage': (after_affordable / after_total * 100) if after_total > 0 else 0,
+                'restock_quantity': sum(qty for _, qty in decisions),
+                'unique_books_added': len(set(book for book, _ in decisions))
+            }
+            
+            # Calculate before values
+            before_total = metrics['after_total'] - metrics['restock_quantity']
+            before_affordable = metrics['after_affordable_books'] - sum(qty for book, qty in decisions if book.price <= 8.0)
+            
+            metrics.update({
+                'before_total': before_total,
+                'before_avg_rating': metrics['after_avg_rating'],  # Approximate
+                'before_seasonal_matches': metrics['after_seasonal_matches'] - sum(1 for book, _ in decisions 
+                                                                               if any(k.lower() in f"{book.title} {book.authors} {book.genre}".lower() 
+                                                                                    for k in seasonal_keywords)),
+                'before_affordable_books': before_affordable,
+                'before_affordable_percentage': (before_affordable / before_total * 100) if before_total > 0 else 0
+            })
+        else:
+            # If no decisions, just get current state
+            current_metrics = calculate_stock_metrics()
+            metrics = {
+                'before_total': current_metrics['total'],
+                'before_avg_rating': current_metrics['avg_rating'],
+                'before_seasonal_matches': current_metrics['seasonal_matches'],
+                'before_affordable_books': current_metrics['affordable_books'],
+                'before_affordable_percentage': current_metrics['affordable_percentage'],
+                'after_total': current_metrics['total'],
+                'after_avg_rating': current_metrics['avg_rating'],
+                'after_seasonal_matches': current_metrics['seasonal_matches'],
+                'after_affordable_books': current_metrics['affordable_books'],
+                'after_affordable_percentage': current_metrics['affordable_percentage'],
+                'restock_quantity': 0,
+                'unique_books_added': 0
+            }
+
+        return metrics  # Just return metrics without printing
+
     def restock(self):
         """Basic restocking with metrics collection."""
-        metrics = {
-            'before_total': sum(self.stock.values()),
-            'before_diversity': len(self.stock),
-            'before_avg_rating': sum(float(book.average_rating or 0) * qty for book, qty in self.stock.items()) / sum(self.stock.values()) if self.stock else 0,
-            'before_seasonal_matches': sum(1 for book in self.stock.keys() 
-                                        if any(k.lower() in f"{book.title} {book.authors} {book.genre}".lower() 
-                                             for k in Customer.seasonal_keywords.get(datetime.now().month, [])))
-        }
+        # Collect metrics before restocking
+        before_metrics = self._collect_metrics(datetime.now())
         
-        log.info(f"Books before basic restocking: {metrics['before_total']}")
         current_total = sum(self.stock.values())
+        remaining_capacity = self.storage_capacity - current_total
         decisions = []
         
+        # Create a diverse selection of books (same as other methods)
+        # Take some high-rated books with random noise in rating
+        top_rated = sorted(
+            self.inventory.books,
+            key=lambda x: float(x.average_rating if x.average_rating else 0) + random.uniform(-0.2, 0.2)
+        )[:1000]  # Keep exactly 1000 top books
+        
+        # Take random books from remaining
+        remaining_books = [b for b in self.inventory.books if b not in top_rated]
+        random_selection = random.sample(remaining_books, 
+                                      min(2000+remaining_capacity, len(remaining_books)))
+        
+        # Combine and shuffle the selection
+        candidate_books = random.sample(top_rated + random_selection, 
+                                    len(top_rated) + len(random_selection))
+        
+        log.info(f"Selected {len(candidate_books)} books for basic restocking")
+        
+        # Perform basic restocking from selected books
         while current_total < self.storage_capacity:
-            book = random.choice(self.inventory.books)
+            book = random.choice(candidate_books)
             quantity = random.randint(1, 5)
             if current_total + quantity > self.storage_capacity:
                 quantity = self.storage_capacity - current_total
@@ -90,30 +179,15 @@ class Store:
             decisions.append((book, quantity))
             log.debug(f"Restocked {quantity} copies of {book.title} (ISBN: {book.isbn})")
 
-        metrics.update({
-            'after_total': sum(self.stock.values()),
-            'after_diversity': len(self.stock),
-            'after_avg_rating': sum(float(book.average_rating or 0) * qty for book, qty in self.stock.items()) / sum(self.stock.values()),
-            'after_seasonal_matches': sum(1 for book in self.stock.keys() 
-                                      if any(k.lower() in f"{book.title} {book.authors} {book.genre}".lower() 
-                                           for k in Customer.seasonal_keywords.get(datetime.now().month, []))),
-            'restock_quantity': sum(qty for _, qty in decisions),
-            'unique_books_added': len(set(book for book, _ in decisions))
-        })
+        # Collect metrics after restocking and print comparison
+        after_metrics = self._collect_metrics(datetime.now(), decisions, prefix="Basic ")
+        self._print_metrics_comparison(before_metrics, after_metrics, "Basic ")
+        return decisions, after_metrics
 
-        # Log improvements
-        log.info("\nBasic Restock Metrics:")
-        log.info(f"Total Stock: {metrics['before_total']} → {metrics['after_total']} ({metrics['after_total'] - metrics['before_total']:+d})")
-        log.info(f"Book Diversity: {metrics['before_diversity']} → {metrics['after_diversity']} ({metrics['after_diversity'] - metrics['before_diversity']:+d})")
-        log.info(f"Average Rating: {metrics['before_avg_rating']:.2f} → {metrics['after_avg_rating']:.2f} ({metrics['after_avg_rating'] - metrics['before_avg_rating']:+.2f})")
-        log.info(f"Seasonal Matches: {metrics['before_seasonal_matches']} → {metrics['after_seasonal_matches']} ({metrics['after_seasonal_matches'] - metrics['before_seasonal_matches']:+d})")
-        log.info(f"Books Restocked: {metrics['restock_quantity']} (across {metrics['unique_books_added']} unique titles)")
-
-        return decisions, metrics
-
-    def restock_timefold_optimized(self, current_date) -> List[Tuple[Book, int]]:  # Add current_date parameter
-        """Use solver API to optimize restocking decisions"""
-        log.info(f"Books before restocking: {sum(self.stock.values())} on {current_date}")
+    def restock_timefold_optimized(self, current_date) -> List[Tuple[Book, int]]:
+        """Use solver API to optimize restocking decisions with metrics collection."""
+        # Collect metrics before restocking
+        before_metrics = self._collect_metrics(current_date)
         
         try:
             current_total = sum(self.stock.values())
@@ -228,30 +302,45 @@ class Store:
                                     total_after = sum(self.stock.values())
                                     log.info(f"Books after restocking: {total_after}")
                                     
-                                return decisions
+                                # After getting decisions and applying them, collect and compare metrics
+                                after_metrics = self._collect_metrics(current_date, decisions, prefix="Timefold ")
+                                self._print_metrics_comparison(before_metrics, after_metrics, "Timefold ")
+                                return decisions, after_metrics
                             else:
                                 log.warning(f"Unexpected solution format: {solution_data}")
-                                return self._basic_restock()
+                                fallback_decisions = self._basic_restock()
+                                after_metrics = self._collect_metrics(current_date, fallback_decisions, prefix="Timefold Fallback ")
+                                self._print_metrics_comparison(before_metrics, after_metrics, "Timefold Fallback ")
+                                return fallback_decisions, after_metrics
                         except ValueError as e:
                             log.warning(f"Failed to parse solution: {e}")
-                            return self._basic_restock()
+                            fallback_decisions = self._basic_restock()
+                            after_metrics = self._collect_metrics(current_date, fallback_decisions, prefix="Timefold Fallback ")
+                            self._print_metrics_comparison(before_metrics, after_metrics, "Timefold Fallback ")
+                            return fallback_decisions, after_metrics
                 
                 attempt += 1
                 time.sleep(2)
             
             log.warning("Optimization timed out - falling back to basic optimization")
-            return self._basic_restock()
+            fallback_decisions = self._basic_restock()
+            after_metrics = self._collect_metrics(current_date, fallback_decisions, prefix="Timefold Fallback ")
+            self._print_metrics_comparison(before_metrics, after_metrics, "Timefold Fallback ")
+            return fallback_decisions, after_metrics
             
         except Exception as e:
             log.warning(f"Solver optimization failed: {e}")
-            return self._basic_restock()
+            fallback_decisions = self._basic_restock()
+            after_metrics = self._collect_metrics(current_date, fallback_decisions, prefix="Timefold Fallback ")
+            self._print_metrics_comparison(before_metrics, after_metrics, "Timefold Fallback ")
+            return fallback_decisions, after_metrics
 
     def _basic_restock(self) -> List[Tuple[Book, int]]:
         """Fallback method for basic restocking"""
         decisions = []
         for book in self.inventory.books:
             current_stock = self.stock.get(book, 0)
-            if current_stock < 10:  # Basic threshold
+            if current_stock < 3:  # Fixed: Changed from 10 to 3 to match other thresholds
                 restock_amount = 10 - current_stock
                 decisions.append((book, restock_amount))
                 # Apply the restock immediately
@@ -263,18 +352,15 @@ class Store:
 
     def restock_alternative(self, current_date):
         """Use alt_solver to optimize restocking without Timefold."""
-        metrics = {
-            'before_total': sum(self.stock.values()),
-            'before_diversity': len(self.stock),
-            'before_avg_rating': sum(float(book.average_rating or 0) * qty for book, qty in self.stock.items()) / sum(self.stock.values()) if self.stock else 0,
-            'before_seasonal_matches': sum(1 for book in self.stock.keys() 
-                                        if any(k.lower() in f"{book.title} {book.authors} {book.genre}".lower() 
-                                             for k in Customer.seasonal_keywords.get(current_date.month, []))),
-        }
+        # Collect metrics before restocking
+        before_metrics = self._collect_metrics(current_date)
         
-        log.info(f"Using alternative solver (LAHC) for restocking on {current_date}")
         current_total = sum(self.stock.values())
         remaining_capacity = self.storage_capacity - current_total
+        
+        # Collect initial metrics
+        initial_metrics = self._collect_metrics(current_date)
+        log.info(f"Books before alternative restocking: {initial_metrics['before_total']}")
         
         # Create a diverse selection of books (similar to timefold_optimized)
         # Take some high-rated books with random noise in rating
@@ -296,33 +382,26 @@ class Store:
         
         decisions = alt_solve(self, candidate_books, remaining_capacity, current_date)
         
-        # Apply decisions and collect post-restock metrics
+        # Apply decisions to actual stock
         for book, quantity in decisions:
             if book in self.stock:
                 self.stock[book] += quantity
             else:
                 self.stock[book] = quantity
         
-        metrics.update({
-            'after_total': sum(self.stock.values()),
-            'after_diversity': len(self.stock),
-            'after_avg_rating': sum(float(book.average_rating or 0) * qty for book, qty in self.stock.items()) / sum(self.stock.values()),
-            'after_seasonal_matches': sum(1 for book in self.stock.keys() 
-                                      if any(k.lower() in f"{book.title} {book.authors} {book.genre}".lower() 
-                                           for k in Customer.seasonal_keywords.get(current_date.month, []))),
-            'restock_quantity': sum(qty for _, qty in decisions),
-            'unique_books_added': len(set(book for book, _ in decisions)),
-        })
-        
-        # Log improvements
-        log.info("\nRestock Metrics:")
-        log.info(f"Total Stock: {metrics['before_total']} → {metrics['after_total']} ({metrics['after_total'] - metrics['before_total']:+d})")
-        log.info(f"Book Diversity: {metrics['before_diversity']} → {metrics['after_diversity']} ({metrics['after_diversity'] - metrics['before_diversity']:+d})")
-        log.info(f"Average Rating: {metrics['before_avg_rating']:.2f} → {metrics['after_avg_rating']:.2f} ({metrics['after_avg_rating'] - metrics['before_avg_rating']:+.2f})")
-        log.info(f"Seasonal Matches: {metrics['before_seasonal_matches']} → {metrics['after_seasonal_matches']} ({metrics['after_seasonal_matches'] - metrics['before_seasonal_matches']:+d})")
-        log.info(f"Books Restocked: {metrics['restock_quantity']} (across {metrics['unique_books_added']} unique titles)")
-        
-        return decisions, metrics
+        # After decisions are made and applied, collect and compare metrics
+        after_metrics = self._collect_metrics(current_date, decisions, prefix="Alternative ")
+        self._print_metrics_comparison(before_metrics, after_metrics, "Alternative ")
+        return decisions, after_metrics
+
+    def _print_metrics_comparison(self, before_metrics, after_metrics, prefix=""):
+        """Helper method to print metrics comparison."""
+        log.info(f"\n{prefix}Restock Metrics:")
+        log.info(f"Total Stock: {before_metrics['before_total']} → {after_metrics['after_total']} ({after_metrics['after_total'] - before_metrics['before_total']:+d})")
+        log.info(f"Average Rating: {before_metrics['before_avg_rating']:.2f} → {after_metrics['after_avg_rating']:.2f} ({after_metrics['after_avg_rating'] - before_metrics['before_avg_rating']:+.2f})")
+        log.info(f"Seasonal Matches: {before_metrics['before_seasonal_matches']} → {after_metrics['after_seasonal_matches']} ({after_metrics['after_seasonal_matches'] - before_metrics['before_seasonal_matches']:+d})")
+        log.info(f"Affordable Books (≤£8): {before_metrics['before_affordable_books']} → {after_metrics['after_affordable_books']} ({after_metrics['after_affordable_books'] - before_metrics['before_affordable_books']:+d})")
+        log.info(f"Affordable Percentage: {before_metrics['before_affordable_percentage']:.1f}% → {after_metrics['after_affordable_percentage']:.1f}% ({after_metrics['after_affordable_percentage'] - before_metrics['before_affordable_percentage']:+.1f}%)")
     
 # Example usage
 if __name__ == "__main__":
